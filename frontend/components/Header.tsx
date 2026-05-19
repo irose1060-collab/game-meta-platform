@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import type { User } from "@/types";
 
 type HeaderProps = {
@@ -15,41 +16,57 @@ export default function Header({
   onSignupClick,
   onLogoutClick,
 }: HeaderProps) {
-  const scrollToSearch = () => {
-    document.getElementById("searchSection")?.scrollIntoView({ behavior: "smooth" });
-  };
+  const router = useRouter();
+  const isAdmin = user?.role?.toUpperCase() === "ADMIN";
 
-  const goToPage = (pathName: string) => {
-    alert(`[이동] ${pathName} 페이지로 이동합니다.`);
+  const scrollToSearch = () => {
+    if (window.location.pathname !== "/") {
+      router.push("/");
+      setTimeout(() => {
+        document.getElementById("searchSection")?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
+      return;
+    }
+
+    document.getElementById("searchSection")?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
     <header className="header">
       <div className="container nav">
-        <button className="logo" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+        <button className="logo" onClick={() => router.push("/")}>
           META GG
         </button>
 
         <nav className="menu">
           <button onClick={scrollToSearch}>전적 검색</button>
-          <button onClick={() => goToPage("/champions")}>챔피언 티어</button>
-          <button onClick={() => goToPage("/stats")}>통계 분석</button>
-          <button onClick={() => goToPage("/patches")}>패치 정보</button>
+          <button onClick={() => router.push("/champions")}>챔피언 티어</button>
+          <button onClick={() => router.push("/stats")}>통계 분석</button>
+          <button onClick={() => router.push("/patches")}>패치 정보</button>
         </nav>
 
         <div className="auth">
           {user ? (
-            <>
-              <span className="user-nickname">{user.nickname}님</span>
-              {user.role === "ADMIN" && (
-                <button className="btn btn-ghost admin-button" onClick={() => goToPage("/admin")}>
-                  관리자
+            isAdmin ? (
+              <>
+                <button className="btn btn-gold" onClick={() => router.push("/admin")}>
+                  관리자 페이지
                 </button>
-              )}
-              <button className="btn btn-ghost" onClick={onLogoutClick}>
-                로그아웃
-              </button>
-            </>
+                <button className="btn btn-ghost" onClick={onLogoutClick}>
+                  로그아웃
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="user-nickname">{user.nickname}님</span>
+                <button className="btn btn-ghost" onClick={() => router.push("/mypage")}>
+                  마이페이지
+                </button>
+                <button className="btn btn-gold" onClick={onLogoutClick}>
+                  로그아웃
+                </button>
+              </>
+            )
           ) : (
             <>
               <button className="btn btn-ghost" onClick={onLoginClick}>
@@ -60,9 +77,6 @@ export default function Header({
               </button>
             </>
           )}
-          <button className="hamburger" onClick={() => alert("모바일 메뉴 열기 구현 예정")}>
-            ☰
-          </button>
         </div>
       </div>
     </header>

@@ -20,6 +20,7 @@ export default function HeroSearch() {
 
   const handleSearch = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     const name = gameName.trim();
     const tag = tagLine.trim().replace("#", "") || "KR1";
 
@@ -39,7 +40,7 @@ export default function HeroSearch() {
       );
 
       if (!data.puuid) {
-        setError("Riot ID를 찾을 수 없습니다.");
+        setError("Riot 계정 정보를 찾을 수 없습니다.");
         return;
       }
 
@@ -66,18 +67,19 @@ export default function HeroSearch() {
             placeholder="소환사명을 입력하세요"
             autoComplete="off"
             value={gameName}
-            onChange={(e) => setGameName(e.target.value)}
+            onChange={(event) => setGameName(event.target.value)}
           />
           <input
             className="tag-input"
             type="text"
             placeholder="#KR1"
-            maxLength={6}
+            maxLength={8}
+            autoComplete="off"
             value={tagLine}
-            onChange={(e) => setTagLine(e.target.value)}
+            onChange={(event) => setTagLine(event.target.value)}
           />
           <button type="submit" className="search-btn" disabled={loading}>
-            {loading ? "SEARCHING" : "SEARCH"}
+            {loading ? "SEARCHING..." : "전적 검색"}
           </button>
         </form>
 
@@ -97,16 +99,12 @@ export default function HeroSearch() {
 
         {result && (
           <div className="search-result-box">
-            <h3>RIOT API 조회 성공</h3>
-            <p>
-              <strong>gameName:</strong> {result.gameName}
-            </p>
-            <p>
-              <strong>tagLine:</strong> {result.tagLine}
-            </p>
-            <p>
-              <strong>puuid:</strong> {result.puuid}
-            </p>
+            <h3>Riot API 조회 성공</h3>
+            <p><strong>소환사명:</strong> {result.gameName}</p>
+            <p><strong>태그:</strong> #{result.tagLine}</p>
+            <p><strong>계정 고유 ID(PUUID):</strong> {result.puuid}</p>
+            <p className="success-message">Riot Account API에서 계정 정보를 정상적으로 가져왔습니다.</p>
+            <p className="success-message">백엔드에서 summoners 테이블 저장까지 수행됩니다.</p>
           </div>
         )}
       </div>

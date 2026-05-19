@@ -5,15 +5,13 @@ import com.game.backend.entity.Summoner;
 import com.game.backend.repository.SummonerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.util.UriUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 
 @Service
@@ -30,10 +28,14 @@ public class RiotService {
 
     @Transactional
     public RiotAccountResponse getAccountByRiotId(String gameName, String tagLine) {
-        String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .path("/riot/account/v1/accounts/by-riot-id/{gameName}/{tagLine}")
-                .buildAndExpand(gameName, tagLine)
-                .toUriString();
+        String encodedGameName = UriUtils.encodePathSegment(gameName, StandardCharsets.UTF_8);
+        String encodedTagLine = UriUtils.encodePathSegment(tagLine, StandardCharsets.UTF_8);
+
+        String url = baseUrl
+                + "/riot/account/v1/accounts/by-riot-id/"
+                + encodedGameName
+                + "/"
+                + encodedTagLine;
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Riot-Token", riotApiKey);
@@ -42,12 +44,18 @@ public class RiotService {
 
         try {
             ResponseEntity<RiotAccountResponse> response = restTemplate.exchange(
-                    url, HttpMethod.GET, entity, RiotAccountResponse.class);
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    RiotAccountResponse.class
+            );
 
             RiotAccountResponse account = response.getBody();
-            if (account != null) {
-                saveOrUpdateSummoner(account);
+            if (account == null || account.getPuuid() == null) {
+                throw new RuntimeException("Riot 계정 정보를 찾을 수 없습니다.");
             }
+
+            saveOrUpdateSummoner(account);
             return account;
         } catch (Exception e) {
             throw new RuntimeException("Riot API 호출 중 오류가 발생했습니다: " + e.getMessage());
@@ -56,9 +64,11 @@ public class RiotService {
 
     private void saveOrUpdateSummoner(RiotAccountResponse account) {
         Summoner summoner = summonerRepository.findByPuuid(account.getPuuid())
-                .orElse(new Summoner());
+                .orElseGet(() -> Summoner.builder()
+                        .puuid(account.getPuuid())
+                        .createdAt(LocalDateTime.now())
+                        .build());
 
-        summoner.setPuuid(account.getPuuid());
         summoner.setGameName(account.getGameName());
         summoner.setTagLine(account.getTagLine());
         summoner.setLastFetchedAt(LocalDateTime.now());

@@ -1,9 +1,6 @@
 package com.game.backend.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Getter
 @NoArgsConstructor
@@ -15,4 +12,6 @@ public class AuthResponse {
     private String nickname;
     private String role;
     private String token;
+    private String provider;
+    private String profileImageUrl;
 }

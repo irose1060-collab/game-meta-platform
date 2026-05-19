@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js
+.next/
+frontend/.next/
+out/
+frontend/out/
+
+# Spring/Gradle
+build/
+backend/build/
+.gradle/
+backend/.gradle/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# env / secrets
+.env
+*.env
+application-local.properties
+application-secret.properties
+
+# OS
+.DS_Store
+Thumbs.db

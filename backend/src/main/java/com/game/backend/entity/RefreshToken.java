@@ -18,15 +18,16 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name="user_id", nullable = false)
     private Long userId;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 500)
     private String token;
 
-    @Column(nullable = false)
+    @Column(name="expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
     @CreationTimestamp
+    @Column(name="created_at")
     private LocalDateTime createdAt;
 }

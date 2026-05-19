@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Header from "@/components/Header";
 import HeroSearch from "@/components/HeroSearch";
 import SummaryCards from "@/components/SummaryCards";
@@ -28,6 +28,22 @@ export default function HomePage() {
     }
   }, []);
 
+  useEffect(() => {
+    const resetUiState = () => {
+      document.body.style.overflow = "";
+      setAuthOpen(false);
+      setSelectedNotice(null);
+    };
+
+    window.addEventListener("pageshow", resetUiState);
+    window.addEventListener("popstate", resetUiState);
+
+    return () => {
+      window.removeEventListener("pageshow", resetUiState);
+      window.removeEventListener("popstate", resetUiState);
+    };
+  }, []);
+
   const openLogin = () => {
     setAuthMode("login");
     setAuthOpen(true);
@@ -38,9 +54,20 @@ export default function HomePage() {
     setAuthOpen(true);
   };
 
+  const closeAuthModal = useCallback(() => {
+    setAuthOpen(false);
+  }, []);
+
+  const closeNoticeModal = useCallback(() => {
+    setSelectedNotice(null);
+  }, []);
+
   const handleLogout = () => {
     localStorage.removeItem("metagg_user");
     localStorage.removeItem("metagg_token");
+    document.body.style.overflow = "";
+    setAuthOpen(false);
+    setSelectedNotice(null);
     setUser(null);
   };
 
@@ -64,11 +91,11 @@ export default function HomePage() {
       <AuthModal
         isOpen={authOpen}
         initialMode={authMode}
-        onClose={() => setAuthOpen(false)}
+        onClose={closeAuthModal}
         onLoginSuccess={setUser}
       />
 
-      <NoticeModal notice={selectedNotice} onClose={() => setSelectedNotice(null)} />
+      <NoticeModal notice={selectedNotice} onClose={closeNoticeModal} />
     </>
   );
 }
