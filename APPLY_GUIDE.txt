@@ -1,3 +1,29 @@
+<<<<<<< HEAD
+META GG final-ready package
+
+1) Copy backend/ and frontend/ to your project root:
+   F:\Game-meta-project  (or C:\Projects\game-meta-platform)
+
+2) Run db_fix.sql once in pgAdmin Query Tool on game_meta.
+
+3) IntelliJ Run Configuration environment variables:
+   DB_PASSWORD=your_postgres_password;RIOT_API_KEY=RGAPI-your-key;GOOGLE_CLIENT_ID=your-google-client-id;GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+4) Google Cloud Console redirect URI:
+   http://localhost:8080/login/oauth2/code/google
+
+5) Start backend:
+   IntelliJ -> BackendApplication run
+   Check:
+   http://localhost:8080/api/test
+   http://localhost:8080/api/home/meta
+
+6) Start frontend:
+   cd /d F:\Game-meta-project\frontend
+   npm install
+   npm run dev
+   Open http://localhost:3000
+=======
 META GG fixed package
 
 1) Copy backend/ and frontend/ over your project root:
@@ -24,3 +50,4 @@ META GG fixed package
    http://localhost:8080/api/test
    http://localhost:8080/api/home/meta
    http://localhost:3000
+>>>>>>> abbd0112e036f567a36a11b7b79e6cb0490d82ae

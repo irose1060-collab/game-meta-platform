@@ -20,6 +20,7 @@ public class HomeMetaService {
         try {
             String versionUrl = "https://ddragon.leagueoflegends.com/api/versions.json";
             List<String> versions = restTemplate.getForObject(versionUrl, List.class);
+
             String latestVersion = versions != null && !versions.isEmpty()
                     ? versions.get(0)
                     : "14.21.1";

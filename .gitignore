@@ -1,0 +1,33 @@
+# Node / Next.js
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+out/
+frontend/out/
+
+# Spring / Gradle
+build/
+backend/build/
+.gradle/
+backend/.gradle/
+
+# IDE
+.idea/
+backend/.idea/
+frontend/.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
+# Environment / Secrets
+.env
+*.env
+application-local.properties
+application-secret.properties
+
+# OS
+.DS_Store
+Thumbs.db
