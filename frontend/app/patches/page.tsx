@@ -1,36 +1,182 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import { fetchPatchNotes } from "@/lib/patchNotesApi";
+import type { PatchNote } from "@/types/patch-note";
+import type { User } from "@/types";
+import styles from "./PatchesPage.module.css";
 
-export default function Page() {
-  const router = useRouter();
+function formatDate(value: string) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value.split("T")[0] || value;
+  }
+
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+export default function PatchesPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [notes, setNotes] = useState<PatchNote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem("metagg_user");
+
+    if (!savedUser) {
+      return;
+    }
+
+    try {
+      setUser(JSON.parse(savedUser));
+    } catch {
+      localStorage.removeItem("metagg_user");
+      localStorage.removeItem("metagg_token");
+    }
+  }, []);
+
+  useEffect(() => {
+    async function loadPatchNotes() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await fetchPatchNotes();
+        setNotes(data);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "패치노트를 불러오지 못했습니다."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadPatchNotes();
+  }, []);
+
+  const latest = notes[0];
+
+  const openLogin = () => {
+    window.location.href = "/";
+  };
+
+  const openSignup = () => {
+    window.location.href = "/";
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("metagg_user");
+    localStorage.removeItem("metagg_token");
+    setUser(null);
+  };
 
   return (
-    <main className="notice-page">
-      <section className="notice-hero">
-        <span className="eyebrow">PATCH NOTES</span>
-        <h1>패치 정보</h1>
-        <p>최신 패치 요약과 챔피언별 성능 변화를 확인하는 페이지입니다.</p>
-      </section>
+    <>
+      <Header
+        user={user}
+        onLoginClick={openLogin}
+        onSignupClick={openSignup}
+        onLogoutClick={handleLogout}
+      />
 
-      <section className="notice-layout">
-        <div className="notice-list-panel">
-          <div className="card-tag">Coming Soon</div>
-          <h2>기능 구현 예정</h2>
-          <div className="notice-empty">
-            상담 후 우선순위에 따라 상세 기능을 구현할 예정입니다.
+      <main className={styles.page}>
+        <section className={styles.hero}>
+          <div className={styles.container}>
+            <div className={styles.heroInner}>
+              <p className={styles.eyebrow}>RIOT OFFICIAL PATCH NOTES</p>
+              <h1 className={styles.title}>패치 정보</h1>
+              <p className={styles.description}>
+                Riot 공식 리그 오브 레전드 패치노트를 불러와 요약하고,
+                각 항목에서 공식 패치노트 페이지로 바로 이동할 수 있습니다.
+              </p>
+            </div>
           </div>
+        </section>
 
-          <button className="btn btn-gold" onClick={() => router.push("/")}>
-            홈으로
-          </button>
-        </div>
+        <section className={styles.content}>
+          <div className={styles.container}>
+            {loading && (
+              <div className={styles.stateBox}>
+                Riot 공식 패치노트를 불러오는 중입니다.
+              </div>
+            )}
 
-        <div className="notice-detail-panel">
-          <h2>패치 정보 설명</h2>
-          <p className="notice-detail-content">최신 패치 요약과 챔피언별 성능 변화를 확인하는 페이지입니다.</p>
-        </div>
-      </section>
-    </main>
+            {!loading && error && <div className={styles.stateBox}>{error}</div>}
+
+            {!loading && !error && latest && (
+              <>
+                <section className={styles.latestCard}>
+                  <span className={styles.cardTag}>Latest Patch</span>
+                  <h2 className={styles.latestTitle}>{latest.title}</h2>
+                  <p className={styles.latestSummary}>{latest.summary}</p>
+                  <div className={styles.meta}>
+                    {latest.category} · {formatDate(latest.publishedAt)}
+                  </div>
+                  <a
+                    href={latest.officialUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={styles.officialButton}
+                  >
+                    Riot 공식 패치노트 보기 →
+                  </a>
+                </section>
+
+                <div className={styles.list}>
+                  {notes.map((note) => (
+                    <article key={note.officialUrl} className={styles.patchCard}>
+                      <div className={styles.versionBox}>
+                        <div className={styles.version}>
+                          {note.patchVersion || "PATCH"}
+                        </div>
+                        <div className={styles.versionLabel}>Version</div>
+                      </div>
+
+                      <div>
+                        <h3 className={styles.patchTitle}>{note.title}</h3>
+                        <p className={styles.patchSummary}>{note.summary}</p>
+                        <div className={styles.patchMeta}>
+                          {note.category} · {formatDate(note.publishedAt)}
+                        </div>
+                      </div>
+
+                      <a
+                        href={note.officialUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={styles.linkButton}
+                      >
+                        공식 페이지 →
+                      </a>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {!loading && !error && notes.length === 0 && (
+              <div className={styles.stateBox}>
+                표시할 패치노트가 없습니다.
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
+
+      <Footer />
+    </>
   );
 }

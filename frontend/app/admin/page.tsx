@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import AdminCollectionStatusPanel from "@/components/admin/AdminCollectionStatusPanel";
 import type { AdminUser, DataCollectionLog, NoticeResponse, User } from "@/types";
 
 type AdminTab = "notices" | "users" | "data";
@@ -459,6 +460,8 @@ export default function AdminPage() {
               <div className="card-tag">Data</div>
               <h2>데이터 수집 상태</h2>
               <p>수동 재수집은 관리자가 Riot API 데이터 갱신을 직접 실행하는 기능입니다.</p>
+
+              <AdminCollectionStatusPanel />
 
               <div className="status-grid">
                 <div className="status-box">

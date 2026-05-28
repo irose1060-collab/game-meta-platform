@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/patches/notes")
+@RequestMapping("/api/patches")
 @RequiredArgsConstructor
 public class PatchNoteController {
 

@@ -13,7 +13,7 @@ export default function SummaryCards() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchHomeMeta();
+    fetchHomeMeta();<div className="card" onClick={() => router.push("/statistics")}></div>
   }, []);
 
   const fetchHomeMeta = async () => {
@@ -115,7 +115,7 @@ export default function SummaryCards() {
           </div>
         </div>
 
-        <div className="card" onClick={() => router.push("/stats")}>
+        <div className="card" onClick={() => router.push("/statistics")}>
           <div className="card-tag">Team Composition</div>
           <h3>팀 조합 분석</h3>
           <div className="body">
@@ -126,7 +126,7 @@ export default function SummaryCards() {
           </div>
         </div>
 
-        <div className="card" onClick={() => router.push("/stats")}>
+        <div className="card" onClick={() => router.push("/statistics")}>
           <span className="ai-badge">AI</span>
           <div className="card-tag">Personal AI</div>
           <h3>개인 AI 피드백</h3>

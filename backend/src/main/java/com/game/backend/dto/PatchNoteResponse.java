@@ -6,9 +6,11 @@ import lombok.Getter;
 @Getter
 @Builder
 public class PatchNoteResponse {
+
     private String title;
-    private String date;
-    private String description;
-    private String url;
-    private String slug;
+    private String patchVersion;
+    private String category;
+    private String publishedAt;
+    private String summary;
+    private String officialUrl;
 }

@@ -1,0 +1,197 @@
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(234, 179, 8, 0.15), transparent 34%),
+    linear-gradient(180deg, #0b1020 0%, #070a12 45%, #05070d 100%);
+  color: #f8fafc;
+}
+
+.container {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.hero {
+  border-bottom: 1px solid rgba(234, 179, 8, 0.14);
+}
+
+.heroInner {
+  padding: 46px 0 34px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: #f6d16b;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+}
+
+.title {
+  margin: 0;
+  font-size: 42px;
+  line-height: 1.08;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.description {
+  margin: 14px 0 0;
+  max-width: 780px;
+  color: #a8b0c2;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.content {
+  padding: 28px 0 56px;
+}
+
+.latestCard {
+  margin-bottom: 18px;
+  border: 1px solid rgba(246, 209, 107, 0.22);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(246, 209, 107, 0.14), transparent 36%),
+    rgba(13, 18, 32, 0.96);
+  border-radius: 28px;
+  padding: 26px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+}
+
+.cardTag {
+  display: inline-flex;
+  margin-bottom: 12px;
+  border: 1px solid rgba(246, 209, 107, 0.38);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #f8d978;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.latestTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 950;
+}
+
+.latestSummary {
+  margin: 12px 0 0;
+  color: #c5cbd9;
+  line-height: 1.75;
+}
+
+.meta {
+  margin-top: 14px;
+  color: #7f8796;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.officialButton {
+  display: inline-flex;
+  margin-top: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(246, 209, 107, 0.45);
+  border-radius: 14px;
+  background: rgba(246, 209, 107, 0.14);
+  color: #f8d978;
+  padding: 11px 15px;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+}
+
+.patchCard {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 18px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 22px;
+  background: rgba(13, 18, 32, 0.92);
+  padding: 18px;
+  transition: 0.16s ease;
+}
+
+.patchCard:hover {
+  border-color: rgba(246, 209, 107, 0.34);
+  transform: translateY(-1px);
+  background: rgba(18, 25, 43, 0.96);
+}
+
+.versionBox {
+  border: 1px solid rgba(246, 209, 107, 0.25);
+  border-radius: 18px;
+  background: rgba(246, 209, 107, 0.09);
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.version {
+  color: #f8d978;
+  font-size: 19px;
+  font-weight: 950;
+}
+
+.versionLabel {
+  margin-top: 4px;
+  color: #7f8796;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.patchTitle {
+  margin: 0;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.patchSummary {
+  margin: 8px 0 0;
+  color: #a8b0c2;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.patchMeta {
+  margin-top: 10px;
+  color: #7f8796;
+  font-size: 12px;
+}
+
+.linkButton {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  color: #e5e7eb;
+  padding: 10px 12px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.stateBox {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 24px;
+  padding: 44px;
+  text-align: center;
+  color: #a8b0c2;
+}
+
+@media (max-width: 760px) {
+  .patchCard {
+    grid-template-columns: 1fr;
+  }
+
+  .linkButton {
+    text-align: center;
+  }
+}

@@ -1,227 +1,177 @@
 package com.game.backend.service;
 
 import com.game.backend.dto.PatchNoteResponse;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.Duration;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class PatchNoteService {
 
-    private static final String PATCH_NOTES_URL =
+    private static final String PATCH_LIST_URL =
             "https://www.leagueoflegends.com/ko-kr/news/tags/patch-notes/";
 
-    private static final String BASE_URL =
-            "https://www.leagueoflegends.com";
+    private static final Pattern DATE_PATTERN =
+            Pattern.compile("(20\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)");
+
+    private static final Pattern PATCH_VERSION_PATTERN =
+            Pattern.compile("(\\d{2}\\.\\d+|\\d+\\.\\d+)\\s*패치");
 
     public List<PatchNoteResponse> getPatchNotes() {
         try {
-            Document document = Jsoup.connect(PATCH_NOTES_URL)
-                    .userAgent("Mozilla/5.0")
-                    .timeout(10000)
+            Document document = Jsoup.connect(PATCH_LIST_URL)
+                    .userAgent("Mozilla/5.0 META-GG")
+                    .timeout((int) Duration.ofSeconds(10).toMillis())
                     .get();
 
-            return parsePatchNotes(document);
+            List<PatchNoteResponse> notes = parsePatchNotes(document);
+
+            if (notes.isEmpty()) {
+                return fallbackNotes();
+            }
+
+            return notes;
         } catch (Exception e) {
-            return fallbackPatchNotes();
+            log.warn("Riot 공식 패치노트 조회 실패: {}", e.getMessage());
+            return fallbackNotes();
         }
     }
 
     private List<PatchNoteResponse> parsePatchNotes(Document document) {
         List<PatchNoteResponse> result = new ArrayList<>();
-        Set<String> usedUrls = new LinkedHashSet<>();
+        Set<String> seenUrls = new HashSet<>();
 
-        Elements links = document.select("a[href*=/news/game-updates/]");
-
-        for (Element link : links) {
-            String href = link.attr("href");
+        for (Element link : document.select("a[href]")) {
+            String href = link.attr("abs:href");
 
             if (href == null || href.isBlank()) {
+                href = link.attr("href");
+            }
+
+            if (href == null || !href.contains("/ko-kr/news/game-updates/")) {
                 continue;
             }
 
-            String url = normalizeUrl(href);
+            String text = normalize(link.text());
 
-            if (!url.contains("/news/game-updates/")) {
+            if (!text.contains("패치 노트")) {
                 continue;
             }
 
-            String rawText = link.text().trim();
-
-            if (!isPatchNoteText(rawText) && !url.contains("patch")) {
+            if (!seenUrls.add(href)) {
                 continue;
             }
 
-            if (usedUrls.contains(url)) {
-                continue;
-            }
+            String publishedAt = extractDate(text);
+            String title = extractTitle(text);
+            String patchVersion = extractPatchVersion(title);
+            String summary = extractSummary(text, title);
 
-            usedUrls.add(url);
-
-            String title = extractTitle(rawText, url);
-            String date = extractDate(rawText);
-            String description = extractDescription(rawText, title, date);
-            String slug = extractSlug(url);
-
-            result.add(
-                    PatchNoteResponse.builder()
-                            .title(title)
-                            .date(date)
-                            .description(description)
-                            .url(url)
-                            .slug(slug)
-                            .build()
-            );
-
-            if (result.size() >= 20) {
-                break;
-            }
+            result.add(PatchNoteResponse.builder()
+                    .title(title)
+                    .patchVersion(patchVersion)
+                    .category("게임 업데이트")
+                    .publishedAt(publishedAt)
+                    .summary(summary)
+                    .officialUrl(href)
+                    .build());
         }
 
-        if (result.isEmpty()) {
-            return fallbackPatchNotes();
+        result.sort((a, b) -> nullSafe(b.getPublishedAt()).compareTo(nullSafe(a.getPublishedAt())));
+
+        if (result.size() > 12) {
+            return result.subList(0, 12);
         }
 
         return result;
     }
 
-    private boolean isPatchNoteText(String text) {
-        if (text == null) return false;
-
-        String lower = text.toLowerCase();
-
-        return lower.contains("패치")
-                || lower.contains("patch")
-                || lower.contains("patch notes");
-    }
-
-    private String extractTitle(String text, String url) {
-        if (text == null || text.isBlank()) {
-            return extractSlug(url);
+    private String normalize(String value) {
+        if (value == null) {
+            return "";
         }
 
-        String cleaned = text
-                .replaceAll("\\s+", " ")
-                .trim();
-
-        int index = cleaned.indexOf("리그 오브 레전드");
-        if (index >= 0) {
-            return cleaned.substring(index).trim();
-        }
-
-        index = cleaned.toLowerCase().indexOf("league of legends");
-        if (index >= 0) {
-            return cleaned.substring(index).trim();
-        }
-
-        if (cleaned.length() > 80) {
-            return cleaned.substring(0, 80) + "...";
-        }
-
-        return cleaned;
+        return value.replaceAll("\\s+", " ").trim();
     }
 
     private String extractDate(String text) {
-        if (text == null) return "-";
-
-        // 예: 2026-05-12T18:00:00.000Z
-        java.util.regex.Pattern pattern =
-                java.util.regex.Pattern.compile("(20\\d{2}-\\d{2}-\\d{2})");
-
-        java.util.regex.Matcher matcher = pattern.matcher(text);
-
+        Matcher matcher = DATE_PATTERN.matcher(text);
         if (matcher.find()) {
             return matcher.group(1);
         }
 
-        return "-";
+        return "";
     }
 
-    private String extractDescription(String text, String title, String date) {
-        if (text == null || text.isBlank()) {
-            return "공식 패치노트 상세 내용을 확인하세요.";
+    private String extractTitle(String text) {
+        String cleaned = text;
+
+        cleaned = cleaned.replaceFirst("^게임 업데이트\\s*", "");
+        cleaned = cleaned.replaceFirst(DATE_PATTERN.pattern(), "").trim();
+
+        int titleEnd = cleaned.indexOf(" 패치 노트");
+        if (titleEnd >= 0) {
+            return cleaned.substring(0, titleEnd + " 패치 노트".length()).trim();
         }
 
-        String cleaned = text
-                .replace(title, "")
-                .replace(date, "")
-                .replace("게임 업데이트", "")
-                .replace("Game Updates", "")
-                .replaceAll("\\s+", " ")
-                .trim();
+        if (cleaned.length() > 70) {
+            return cleaned.substring(0, 70).trim();
+        }
+
+        return cleaned.isBlank() ? "리그 오브 레전드 패치 노트" : cleaned;
+    }
+
+    private String extractPatchVersion(String title) {
+        Matcher matcher = PATCH_VERSION_PATTERN.matcher(title);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+
+        return "";
+    }
+
+    private String extractSummary(String text, String title) {
+        String cleaned = text;
+
+        cleaned = cleaned.replaceFirst("^게임 업데이트\\s*", "");
+        cleaned = cleaned.replaceFirst(DATE_PATTERN.pattern(), "").trim();
+
+        if (title != null && !title.isBlank()) {
+            cleaned = cleaned.replace(title, "").trim();
+        }
 
         if (cleaned.isBlank()) {
-            return "공식 패치노트 상세 내용을 확인하세요.";
+            return "Riot 공식 패치노트에서 상세 변경 내용을 확인할 수 있습니다.";
         }
 
-        if (cleaned.length() > 120) {
-            return cleaned.substring(0, 120) + "...";
-        }
-
-        return cleaned;
-    }
-
-    private String normalizeUrl(String href) {
-        if (href.startsWith("http")) {
-            return href;
-        }
-
-        if (href.startsWith("/")) {
-            return BASE_URL + href;
-        }
-
-        return BASE_URL + "/" + href;
-    }
-
-    private String extractSlug(String url) {
-        if (url == null || url.isBlank()) return "";
-
-        String cleaned = url;
-
-        if (cleaned.endsWith("/")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 1);
-        }
-
-        int index = cleaned.lastIndexOf("/");
-
-        if (index >= 0 && index < cleaned.length() - 1) {
-            return cleaned.substring(index + 1);
+        if (cleaned.length() > 180) {
+            return cleaned.substring(0, 180).trim() + "...";
         }
 
         return cleaned;
     }
 
-    private List<PatchNoteResponse> fallbackPatchNotes() {
+    private String nullSafe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private List<PatchNoteResponse> fallbackNotes() {
         return List.of(
                 PatchNoteResponse.builder()
-                        .title("리그 오브 레전드 26.10 패치 노트")
-                        .date("2026-05-12")
-                        .description("악마의 시즌이 26.10 패치와 함께 계속됩니다.")
-                        .url("https://www.leagueoflegends.com/ko-kr/news/game-updates/league-of-legends-patch-26-10-notes/")
-                        .slug("league-of-legends-patch-26-10-notes")
-                        .build(),
-                PatchNoteResponse.builder()
-                        .title("리그 오브 레전드 26.9 패치 노트")
-                        .date("2026-04-28")
-                        .description("26.9 패치와 함께 악마 사냥을 시작하세요.")
-                        .url("https://www.leagueoflegends.com/ko-kr/news/game-updates/league-of-legends-patch-26-9-notes/")
-                        .slug("league-of-legends-patch-26-9-notes")
-                        .build(),
-                PatchNoteResponse.builder()
-                        .title("리그 오브 레전드 26.8 패치 노트")
-                        .date("2026-04-14")
-                        .description("그루브가 넘치는 26.8 패치입니다.")
-                        .url("https://www.leagueoflegends.com/ko-kr/news/game-updates/league-of-legends-patch-26-8-notes/")
-                        .slug("league-of-legends-patch-26-8-notes")
+                        .title("Riot 공식 패치노트")
+                        .patchVersion("")
+                        .category("게임 업데이트")
+                        .publishedAt("")
+                        .summary("Riot 공식 패치노트 페이지에서 최신 업데이트 내용을 확인할 수 있습니다.")
+                        .officialUrl(PATCH_LIST_URL)
                         .build()
         );
     }
