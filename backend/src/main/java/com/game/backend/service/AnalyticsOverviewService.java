@@ -43,6 +43,7 @@ public class AnalyticsOverviewService {
         }
 
         String sql = """
+<<<<<<< HEAD
                 SELECT patch
                 FROM champion_stats
                 WHERE patch IS NOT NULL
@@ -65,6 +66,35 @@ public class AnalyticsOverviewService {
         );
 
         return fallback.isEmpty() ? "" : fallback.get(0);
+=======
+            SELECT
+                patch,
+                COALESCE(SUM(games), 0) AS total_games,
+                COALESCE(MAX(games), 0) AS max_games,
+                COUNT(*) AS row_count
+            FROM champion_stats
+            WHERE patch IS NOT NULL
+              AND patch <> ''
+            GROUP BY patch
+            ORDER BY
+                CASE
+                    WHEN COALESCE(SUM(games), 0) >= 100
+                     AND COALESCE(MAX(games), 0) >= 3
+                    THEN 0
+                    ELSE 1
+                END ASC,
+                COALESCE(SUM(games), 0) DESC,
+                patch DESC
+            LIMIT 1
+            """;
+
+        List<String> result = jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> rs.getString("patch")
+        );
+
+        return result.isEmpty() ? "" : result.get(0);
+>>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
     }
 
     private AnalyticsSummaryResponse getSummary(String patch, int minGames) {

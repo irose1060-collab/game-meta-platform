@@ -1,5 +1,9 @@
 "use client";
 
+<<<<<<< HEAD
+=======
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+>>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";

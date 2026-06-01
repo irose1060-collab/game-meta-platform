@@ -104,3 +104,149 @@ export type HomeMetaResponse = {
     source?: string;
   };
 };
+
+export type AssetDto = {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+};
+
+export type MatchParticipantResponse = {
+  puuid: string;
+  summonerId: string;
+  summonerName: string;
+
+  riotGameName: string;
+  riotTagLine: string;
+
+  teamId: number;
+  teamPosition: string;
+
+  championName: string;
+  championImageUrl: string;
+  championLevel: number;
+
+  win: boolean;
+
+  kills: number;
+  deaths: number;
+  assists: number;
+  kda: number;
+
+  killParticipation: number;
+  damageShare: number;
+
+  totalCs: number;
+  csPerMinute: number;
+
+  goldEarned: number;
+  totalDamageDealtToChampions: number;
+  totalDamageTaken: number;
+
+  visionScore: number;
+  wardsPlaced: number;
+  wardsKilled: number;
+  controlWardsPlaced: number;
+
+  opScore: number;
+  opScoreRank: number;
+  opScoreBadge: string;
+
+  rankTier: string;
+
+  items: AssetDto[];
+  summonerSpells: AssetDto[];
+  runes: AssetDto[];
+};
+
+export type MatchTeamSummaryResponse = {
+  teamId: number;
+  win: boolean;
+  totalKills: number;
+  totalGold: number;
+  baronKills: number;
+  dragonKills: number;
+  riftHeraldKills: number;
+  hordeKills: number;
+  towerKills: number;
+  inhibitorKills: number;
+  bans: AssetDto[];
+};
+
+export type MatchSummaryResponse = {
+  matchId: string;
+
+  gameStartTimestamp: number;
+  playedAtText: string;
+
+  championName: string;
+  championImageUrl: string;
+
+  win: boolean;
+  resultText: string;
+
+  kills: number;
+  deaths: number;
+  assists: number;
+  kda: number;
+
+  killParticipation: number;
+
+  position: string;
+  gameMode: string;
+  queueType: string;
+  queueId: number;
+
+  gameDurationSeconds: number;
+  gameDurationText: string;
+
+  totalCs: number;
+  csPerMinute: number;
+
+  goldEarned: number;
+  totalDamageDealtToChampions: number;
+  totalDamageTaken: number;
+  visionScore: number;
+
+  wardsPlaced: number;
+  wardsKilled: number;
+  controlWardsPlaced: number;
+
+  opScore: number;
+  opScoreRank: number;
+  opScoreBadge: string;
+
+  rankTier: string;
+
+  items: AssetDto[];
+  summonerSpells: AssetDto[];
+  runes: AssetDto[];
+
+  blueTeam: MatchParticipantResponse[];
+  redTeam: MatchParticipantResponse[];
+
+  blueTeamTotalKills: number;
+  redTeamTotalKills: number;
+  blueTeamTotalGold: number;
+  redTeamTotalGold: number;
+
+  maxDamage: number;
+
+  blueTeamSummary: MatchTeamSummaryResponse;
+  redTeamSummary: MatchTeamSummaryResponse;
+};
+
+export type MatchSearchResponse = {
+  gameName: string;
+  tagLine: string;
+  puuid: string;
+
+  totalMatches: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  averageKda: number;
+
+  matches: MatchSummaryResponse[];
+};

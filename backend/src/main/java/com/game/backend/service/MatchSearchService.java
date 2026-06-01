@@ -26,6 +26,8 @@ public class MatchSearchService {
 
     private final RiotService riotService;
     private final RestTemplate restTemplate;
+    private final RiotDataCollectionService riotDataCollectionService;
+    private final ChampionStatsService championStatsService;
 
     @Value("${riot.api.key}")
     private String riotApiKey;
@@ -78,6 +80,18 @@ public class MatchSearchService {
                 .average()
                 .orElse(0.0)
         );
+        try {
+            riotDataCollectionService.collectRecentMatchesByRiotId(
+                    account.getGameName(),
+                    account.getTagLine(),
+                    safeCount
+            );
+
+            championStatsService.rebuildChampionStats();
+        } catch (Exception ignored) {
+            // 전적 조회 화면은 막지 않는다.
+            // DB 저장/통계 재집계 실패는 관리자 수집 현황 또는 로그에서 따로 확인한다.
+        }
 
         return MatchSearchResponse.builder()
                 .gameName(account.getGameName())

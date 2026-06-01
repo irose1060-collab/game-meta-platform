@@ -24,9 +24,22 @@ frontend/.idea/
 
 # Environment / Secrets
 .env
+.env.local
 *.env
 application-local.properties
 application-secret.properties
+
+# Archives / Backups
+*.zip
+*.dump
+*.backup
+*.sql
+
+# Accidental files
+FETCH_HEAD
+cd
+git
+main
 
 # OS
 .DS_Store

@@ -1,5 +1,9 @@
 "use client";
 
+<<<<<<< HEAD
+=======
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+>>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
 import { useEffect, useMemo, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -149,6 +153,7 @@ export default function ChampionsPage() {
 }, []);
 
   const latestPatch = useMemo(() => {
+<<<<<<< HEAD
     return (
       stats
         .map((item) => item.patch)
@@ -157,6 +162,52 @@ export default function ChampionsPage() {
       ""
     );
   }, [stats]);
+=======
+  const patchMap = new Map<
+    string,
+    {
+      totalGames: number;
+      maxGames: number;
+      rowCount: number;
+    }
+  >();
+
+  stats.forEach((item) => {
+    if (!item.patch) return;
+
+    const current = patchMap.get(item.patch) ?? {
+      totalGames: 0,
+      maxGames: 0,
+      rowCount: 0,
+    };
+
+    patchMap.set(item.patch, {
+      totalGames: current.totalGames + item.games,
+      maxGames: Math.max(current.maxGames, item.games),
+      rowCount: current.rowCount + 1,
+    });
+  });
+
+  const patches = [...patchMap.entries()];
+
+  if (patches.length === 0) {
+    return "";
+  }
+
+  const reliablePatches = patches.filter(
+    ([, value]) => value.totalGames >= 50 && value.maxGames >= 3
+  );
+
+  const targetPatches = reliablePatches.length > 0 ? reliablePatches : patches;
+
+  return targetPatches.sort((a, b) => {
+    const totalGameDiff = b[1].totalGames - a[1].totalGames;
+    if (totalGameDiff !== 0) return totalGameDiff;
+
+    return b[0].localeCompare(a[0], undefined, { numeric: true });
+  })[0][0];
+}, [stats]);
+>>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
 
   const filteredStats = useMemo(() => {
     const q = keyword.trim().toLowerCase();
