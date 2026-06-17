@@ -1,9 +1,6 @@
 "use client";
 
-<<<<<<< HEAD
-=======
 import { useCurrentUser } from "@/hooks/useCurrentUser";
->>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
 import { useEffect, useMemo, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -91,6 +88,7 @@ export default function ChampionsPage() {
   const [championNameMap, setChampionNameMap] = useState<ChampionNameMap>({});
   const [selectedChampion, setSelectedChampion] =
     useState<ChampionStat | null>(null);
+  const { user, logout, goHomeForAuth } = useCurrentUser();
 
   useEffect(() => {
     let ignore = false;
@@ -129,85 +127,74 @@ export default function ChampionsPage() {
   }, [selectedPosition]);
 
   useEffect(() => {
-  let ignore = false;
+    let ignore = false;
 
-  async function loadChampionNames() {
-    try {
-      const map = await fetchKoreanChampionNameMap();
+    async function loadChampionNames() {
+      try {
+        const map = await fetchKoreanChampionNameMap();
 
-      if (!ignore) {
-        setChampionNameMap(map);
-      }
-    } catch {
-      if (!ignore) {
-        setChampionNameMap({});
+        if (!ignore) {
+          setChampionNameMap(map);
+        }
+      } catch {
+        if (!ignore) {
+          setChampionNameMap({});
+        }
       }
     }
-  }
 
-  loadChampionNames();
+    loadChampionNames();
 
-  return () => {
-    ignore = true;
-  };
-}, []);
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const latestPatch = useMemo(() => {
-<<<<<<< HEAD
-    return (
-      stats
-        .map((item) => item.patch)
-        .filter(Boolean)
-        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0] ??
-      ""
-    );
-  }, [stats]);
-=======
-  const patchMap = new Map<
-    string,
-    {
-      totalGames: number;
-      maxGames: number;
-      rowCount: number;
-    }
-  >();
+    const patchMap = new Map<
+      string,
+      {
+        totalGames: number;
+        maxGames: number;
+        rowCount: number;
+      }
+    >();
 
-  stats.forEach((item) => {
-    if (!item.patch) return;
+    stats.forEach((item) => {
+      if (!item.patch) return;
 
-    const current = patchMap.get(item.patch) ?? {
-      totalGames: 0,
-      maxGames: 0,
-      rowCount: 0,
-    };
+      const current = patchMap.get(item.patch) ?? {
+        totalGames: 0,
+        maxGames: 0,
+        rowCount: 0,
+      };
 
-    patchMap.set(item.patch, {
-      totalGames: current.totalGames + item.games,
-      maxGames: Math.max(current.maxGames, item.games),
-      rowCount: current.rowCount + 1,
+      patchMap.set(item.patch, {
+        totalGames: current.totalGames + item.games,
+        maxGames: Math.max(current.maxGames, item.games),
+        rowCount: current.rowCount + 1,
+      });
     });
-  });
 
-  const patches = [...patchMap.entries()];
+    const patches = [...patchMap.entries()];
 
-  if (patches.length === 0) {
-    return "";
-  }
+    if (patches.length === 0) {
+      return "";
+    }
 
-  const reliablePatches = patches.filter(
-    ([, value]) => value.totalGames >= 50 && value.maxGames >= 3
-  );
+    const reliablePatches = patches.filter(
+      ([, value]) => value.totalGames >= 50 && value.maxGames >= 3
+    );
 
-  const targetPatches = reliablePatches.length > 0 ? reliablePatches : patches;
+    const targetPatches = reliablePatches.length > 0 ? reliablePatches : patches;
 
-  return targetPatches.sort((a, b) => {
-    const totalGameDiff = b[1].totalGames - a[1].totalGames;
-    if (totalGameDiff !== 0) return totalGameDiff;
+    return targetPatches.sort((a, b) => {
+      const totalGameDiff = b[1].totalGames - a[1].totalGames;
+      if (totalGameDiff !== 0) return totalGameDiff;
 
-    return b[0].localeCompare(a[0], undefined, { numeric: true });
-  })[0][0];
-}, [stats]);
->>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
+      return b[0].localeCompare(a[0], undefined, { numeric: true });
+    })[0][0];
+  }, [stats]);
 
   const filteredStats = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -217,12 +204,16 @@ export default function ChampionsPage() {
       .filter((item) => showLowSample || item.games >= 3)
       .filter((item) => {
         if (!q) return true;
-          const koreanName = getKoreanChampionName(item.championName, championNameMap);
+
+        const koreanName = getKoreanChampionName(
+          item.championName,
+          championNameMap
+        );
 
         return (
           item.championName.toLowerCase().includes(q) ||
           koreanName.toLowerCase().includes(q)
-      );
+        );
       })
       .sort((a, b) => {
         if (sortKey === "tierScore") {
@@ -246,14 +237,19 @@ export default function ChampionsPage() {
       totalGames: latestStats.reduce((sum, item) => sum + item.games, 0),
       championCount: latestStats.length,
       topChampion: filteredStats[0]
-  ? getKoreanChampionName(filteredStats[0].championName, championNameMap)
-  : "-",
+        ? getKoreanChampionName(filteredStats[0].championName, championNameMap)
+        : "-",
     };
   }, [stats, latestPatch, filteredStats, championNameMap]);
 
   return (
     <>
-      <Header />
+      <Header
+        user={user}
+        onLoginClick={goHomeForAuth}
+        onSignupClick={goHomeForAuth}
+        onLogoutClick={logout}
+      />
 
       <main className={styles.page}>
         <section className={styles.hero}>
@@ -269,7 +265,7 @@ export default function ChampionsPage() {
               </div>
 
               <div className={styles.summaryGrid}>
-                <SummaryCard label="현재 패치" value={latestPatch || "-"} />
+                <SummaryCard label="분석 기준 패치" value={latestPatch || "-"} />
                 <SummaryCard
                   label="누적 표본"
                   value={formatNumber(summary.totalGames)}
@@ -437,9 +433,9 @@ function ChampionRow({
   onClick: () => void;
 }) {
   const displayName = getKoreanChampionName(
-  champion.championName,
-  championNameMap
-);
+    champion.championName,
+    championNameMap
+  );
   return (
     <tr className={styles.clickableRow} onClick={onClick}>
       <td className={styles.left}>

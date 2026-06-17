@@ -50,12 +50,8 @@ const Header: React.FC<HeaderProps> = ({
     <header className="header">
       <div className="container header-content">
         <Link href="/" className="logo">
-<<<<<<< HEAD
-          META GG
-=======
           <span className="logo-mark">◆</span>
           <span>META GG</span>
->>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
         </Link>
 
         <nav className="main-nav">
@@ -106,8 +102,4 @@ const Header: React.FC<HeaderProps> = ({
   );
 };
 
-<<<<<<< HEAD
 export default Header;
-=======
-export default Header;
->>>>>>> 6f9234f (feat: improve match search and analytics patch selection)

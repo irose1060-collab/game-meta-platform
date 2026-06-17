@@ -1,9 +1,6 @@
 "use client";
 
-<<<<<<< HEAD
-=======
 import { useCurrentUser } from "@/hooks/useCurrentUser";
->>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
 import { useEffect, useMemo, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -45,6 +42,7 @@ export default function StatisticsPage() {
   const [minGames, setMinGames] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { user, logout, goHomeForAuth } = useCurrentUser();
 
   async function loadOverview(nextMinGames = minGames) {
     try {
@@ -112,7 +110,12 @@ export default function StatisticsPage() {
 
   return (
     <>
-      <Header />
+      <Header
+        user={user}
+        onLoginClick={goHomeForAuth}
+        onSignupClick={goHomeForAuth}
+        onLogoutClick={logout}
+      />
 
       <main className={styles.page}>
         <section className={styles.hero}>

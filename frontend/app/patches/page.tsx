@@ -1,15 +1,11 @@
 "use client";
 
-<<<<<<< HEAD
-=======
 import { useCurrentUser } from "@/hooks/useCurrentUser";
->>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { fetchPatchNotes } from "@/lib/patchNotesApi";
 import type { PatchNote } from "@/types/patch-note";
-import type { User } from "@/types";
 import styles from "./PatchesPage.module.css";
 
 function formatDate(value: string) {
@@ -29,25 +25,10 @@ function formatDate(value: string) {
 }
 
 export default function PatchesPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, logout, goHomeForAuth } = useCurrentUser();
   const [notes, setNotes] = useState<PatchNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    const savedUser = localStorage.getItem("metagg_user");
-
-    if (!savedUser) {
-      return;
-    }
-
-    try {
-      setUser(JSON.parse(savedUser));
-    } catch {
-      localStorage.removeItem("metagg_user");
-      localStorage.removeItem("metagg_token");
-    }
-  }, []);
 
   useEffect(() => {
     async function loadPatchNotes() {
@@ -73,27 +54,13 @@ export default function PatchesPage() {
 
   const latest = notes[0];
 
-  const openLogin = () => {
-    window.location.href = "/";
-  };
-
-  const openSignup = () => {
-    window.location.href = "/";
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("metagg_user");
-    localStorage.removeItem("metagg_token");
-    setUser(null);
-  };
-
   return (
     <>
       <Header
         user={user}
-        onLoginClick={openLogin}
-        onSignupClick={openSignup}
-        onLogoutClick={handleLogout}
+        onLoginClick={goHomeForAuth}
+        onSignupClick={goHomeForAuth}
+        onLogoutClick={logout}
       />
 
       <main className={styles.page}>

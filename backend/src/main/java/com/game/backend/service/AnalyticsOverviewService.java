@@ -7,7 +7,10 @@ import org.springframework.stereotype.Service;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -43,58 +46,53 @@ public class AnalyticsOverviewService {
         }
 
         String sql = """
-<<<<<<< HEAD
-                SELECT patch
+                SELECT
+                    patch,
+                    COALESCE(SUM(games), 0) AS total_games,
+                    COALESCE(MAX(games), 0) AS max_games
                 FROM champion_stats
                 WHERE patch IS NOT NULL
-                  AND patch ~ '^\\d+\\.\\d+$'
+                  AND patch <> ''
+                  AND patch ~ '^[0-9]+[.][0-9]+$'
                 GROUP BY patch
                 ORDER BY
+                    CASE
+                        WHEN COALESCE(SUM(games), 0) >= 100
+                         AND COALESCE(MAX(games), 0) >= 3
+                        THEN 0
+                        ELSE 1
+                    END ASC,
+                    COALESCE(SUM(games), 0) DESC,
                     SPLIT_PART(patch, '.', 1)::int DESC,
                     SPLIT_PART(patch, '.', 2)::int DESC
                 LIMIT 1
                 """;
-
-        List<String> result = jdbcTemplate.query(sql, (rs, rowNum) -> rs.getString("patch"));
-        if (!result.isEmpty()) {
-            return result.get(0);
-        }
-
-        List<String> fallback = jdbcTemplate.query(
-                "SELECT patch FROM champion_stats WHERE patch IS NOT NULL GROUP BY patch ORDER BY patch DESC LIMIT 1",
-                (rs, rowNum) -> rs.getString("patch")
-        );
-
-        return fallback.isEmpty() ? "" : fallback.get(0);
-=======
-            SELECT
-                patch,
-                COALESCE(SUM(games), 0) AS total_games,
-                COALESCE(MAX(games), 0) AS max_games,
-                COUNT(*) AS row_count
-            FROM champion_stats
-            WHERE patch IS NOT NULL
-              AND patch <> ''
-            GROUP BY patch
-            ORDER BY
-                CASE
-                    WHEN COALESCE(SUM(games), 0) >= 100
-                     AND COALESCE(MAX(games), 0) >= 3
-                    THEN 0
-                    ELSE 1
-                END ASC,
-                COALESCE(SUM(games), 0) DESC,
-                patch DESC
-            LIMIT 1
-            """;
 
         List<String> result = jdbcTemplate.query(
                 sql,
                 (rs, rowNum) -> rs.getString("patch")
         );
 
-        return result.isEmpty() ? "" : result.get(0);
->>>>>>> 6f9234f (feat: improve match search and analytics patch selection)
+        if (!result.isEmpty()) {
+            return result.get(0);
+        }
+
+        String fallbackSql = """
+                SELECT patch
+                FROM champion_stats
+                WHERE patch IS NOT NULL
+                  AND patch <> ''
+                GROUP BY patch
+                ORDER BY COALESCE(SUM(games), 0) DESC, patch DESC
+                LIMIT 1
+                """;
+
+        List<String> fallback = jdbcTemplate.query(
+                fallbackSql,
+                (rs, rowNum) -> rs.getString("patch")
+        );
+
+        return fallback.isEmpty() ? "" : fallback.get(0);
     }
 
     private AnalyticsSummaryResponse getSummary(String patch, int minGames) {
@@ -138,14 +136,12 @@ public class AnalyticsOverviewService {
     private List<PositionDistributionResponse> getPositionDistribution(String patch) {
         String sql = """
                 SELECT
-                    mp.team_position AS position,
-                    COUNT(*) AS pick_count
-                FROM match_participants mp
-                JOIN matches m ON m.match_id = mp.match_id
-                WHERE m.queue_id = 420
-                  AND CONCAT(SPLIT_PART(m.game_version, '.', 1), '.', SPLIT_PART(m.game_version, '.', 2)) = ?
-                  AND mp.team_position IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')
-                GROUP BY mp.team_position
+                    position,
+                    COALESCE(SUM(games), 0) AS pick_count
+                FROM champion_stats
+                WHERE patch = ?
+                  AND position IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')
+                GROUP BY position
                 """;
 
         Map<String, Long> countMap = new LinkedHashMap<>();
@@ -162,7 +158,9 @@ public class AnalyticsOverviewService {
         List<PositionDistributionResponse> result = new ArrayList<>();
         for (String position : POSITIONS) {
             long pickCount = countMap.getOrDefault(position, 0L);
-            double percentage = total == 0 ? 0.0 : Math.round((pickCount * 10000.0 / total)) / 100.0;
+            double percentage = total == 0
+                    ? 0.0
+                    : Math.round((pickCount * 10000.0 / total)) / 100.0;
 
             result.add(PositionDistributionResponse.builder()
                     .position(position)
@@ -181,31 +179,30 @@ public class AnalyticsOverviewService {
             int limit
     ) {
         String sql = """
-            SELECT
-                patch,
-                queue_id,
-                position,
-                champion_id,
-                champion_name,
-                games,
-                wins,
-                win_rate,
-                pick_rate,
-                avg_kda,
-                avg_damage,
-                avg_gold,
-                avg_cs,
-                avg_vision_score,
-                tier_score,
-                tier
-            FROM champion_stats
-            WHERE patch = ?
-              AND games >= ?
-            ORDER BY 
-            """ + orderBy + """
-            
-            LIMIT ?
-            """;
+                SELECT
+                    patch,
+                    queue_id,
+                    position,
+                    champion_id,
+                    champion_name,
+                    games,
+                    wins,
+                    win_rate,
+                    pick_rate,
+                    avg_kda,
+                    avg_damage,
+                    avg_gold,
+                    avg_cs,
+                    avg_vision_score,
+                    tier_score,
+                    tier
+                FROM champion_stats
+                WHERE patch = ?
+                  AND games >= ?
+                ORDER BY
+                """ + orderBy + """
+                LIMIT ?
+                """;
 
         return jdbcTemplate.query(
                 sql,
@@ -255,10 +252,16 @@ public class AnalyticsOverviewService {
             grouped.put(position, new ArrayList<>());
         }
 
-        jdbcTemplate.query(sql, rs -> {
-            String position = rs.getString("position");
-            grouped.computeIfAbsent(position, key -> new ArrayList<>()).add(mapChampion(rs));
-        }, patch, minGames);
+        List<AnalyticsChampionResponse> champions = jdbcTemplate.query(
+                sql,
+                (rs, rowNum) -> mapChampion(rs),
+                patch,
+                minGames
+        );
+
+        for (AnalyticsChampionResponse champion : champions) {
+            grouped.computeIfAbsent(champion.getPosition(), key -> new ArrayList<>()).add(champion);
+        }
 
         List<PositionTopChampionsResponse> result = new ArrayList<>();
         for (String position : POSITIONS) {
