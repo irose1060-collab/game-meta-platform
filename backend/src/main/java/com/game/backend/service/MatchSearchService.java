@@ -1,11 +1,17 @@
 package com.game.backend.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.dto.AssetDto;
 import com.game.backend.dto.MatchParticipantResponse;
 import com.game.backend.dto.MatchSearchResponse;
 import com.game.backend.dto.MatchSummaryResponse;
 import com.game.backend.dto.MatchTeamSummaryResponse;
 import com.game.backend.dto.RiotAccountResponse;
+import com.game.backend.entity.MatchEntity;
+import com.game.backend.entity.MatchParticipant;
+import com.game.backend.repository.MatchParticipantRepository;
+import com.game.backend.repository.MatchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -29,6 +35,9 @@ public class MatchSearchService {
     private final RestTemplate restTemplate;
     private final RiotDataCollectionService riotDataCollectionService;
     private final ChampionStatsService championStatsService;
+    private final MatchRepository matchRepository;
+    private final MatchParticipantRepository matchParticipantRepository;
+    private final ObjectMapper objectMapper;
 
     @Value("${riot.api.key}")
     private String riotApiKey;
@@ -60,8 +69,23 @@ public class MatchSearchService {
         List<MatchSummaryResponse> matches = new ArrayList<>();
 
         for (String matchId : matchIds) {
-            MatchSummaryResponse match =
-                    getMatchSummary(matchId, puuid, latestVersion, runeMap, championKeyMap, rankCache);
+            MatchSummaryResponse match = getCachedMatchSummary(
+                    matchId,
+                    puuid,
+                    latestVersion,
+                    runeMap
+            );
+
+            if (match == null) {
+                match = getMatchSummary(
+                        matchId,
+                        puuid,
+                        latestVersion,
+                        runeMap,
+                        championKeyMap,
+                        rankCache
+                );
+            }
 
             if (match != null) {
                 matches.add(match);
@@ -86,19 +110,6 @@ public class MatchSearchService {
                 .average()
                 .orElse(0.0)
         );
-        try {
-            riotDataCollectionService.collectRecentMatchesByRiotId(
-                    account.getGameName(),
-                    account.getTagLine(),
-                    safeCount
-            );
-
-            championStatsService.rebuildChampionStats();
-        } catch (Exception ignored) {
-            // 전적 조회 화면은 막지 않는다.
-            // DB 저장/통계 재집계 실패는 관리자 수집 현황 또는 로그에서 따로 확인한다.
-        }
-
         return MatchSearchResponse.builder()
                 .gameName(account.getGameName())
                 .tagLine(account.getTagLine())
@@ -138,6 +149,220 @@ public class MatchSearchService {
         return response.getBody() != null ? response.getBody() : List.of();
     }
 
+    private MatchSummaryResponse getCachedMatchSummary(
+            String matchId,
+            String searchedPuuid,
+            String latestVersion,
+            Map<Integer, AssetDto> runeMap
+    ) {
+        Optional<MatchEntity> matchOptional = matchRepository.findByMatchId(matchId);
+
+        if (matchOptional.isEmpty()) {
+            return null;
+        }
+
+        List<MatchParticipant> participantRows =
+                matchParticipantRepository.findByMatchIdOrderByTeamIdAscTeamPositionAsc(matchId);
+
+        if (participantRows.size() < 10) {
+            return null;
+        }
+
+        MatchParticipant targetParticipant = participantRows.stream()
+                .filter(participant -> searchedPuuid.equals(participant.getPuuid()))
+                .findFirst()
+                .orElse(null);
+
+        if (targetParticipant == null) {
+            return null;
+        }
+
+        MatchEntity matchEntity = matchOptional.get();
+        Integer gameDurationSeconds = defaultInt(matchEntity.getGameDuration(), 0);
+        Long gameStartTimestamp = matchEntity.getGameCreation();
+        Integer queueId = defaultInt(matchEntity.getQueueId(), 0);
+
+        int blueTeamTotalKills = 0;
+        int redTeamTotalKills = 0;
+        int blueTeamTotalGold = 0;
+        int redTeamTotalGold = 0;
+        int blueTeamTotalDamage = 0;
+        int redTeamTotalDamage = 0;
+        int maxDamage = 0;
+
+        for (MatchParticipant participant : participantRows) {
+            int teamId = defaultInt(participant.getTeamId(), 0);
+            int kills = defaultInt(participant.getKills(), 0);
+            int gold = defaultInt(participant.getGoldEarned(), 0);
+            int damage = defaultInt(participant.getTotalDamageDealtToChampions(), 0);
+
+            maxDamage = Math.max(maxDamage, damage);
+
+            if (teamId == 100) {
+                blueTeamTotalKills += kills;
+                blueTeamTotalGold += gold;
+                blueTeamTotalDamage += damage;
+            } else if (teamId == 200) {
+                redTeamTotalKills += kills;
+                redTeamTotalGold += gold;
+                redTeamTotalDamage += damage;
+            }
+        }
+
+        Map<String, Double> opScoreMap = new HashMap<>();
+
+        for (MatchParticipant participant : participantRows) {
+            int teamId = defaultInt(participant.getTeamId(), 0);
+            int teamKills = teamId == 100 ? blueTeamTotalKills : redTeamTotalKills;
+
+            double opScore = calculateOpScore(participant, teamKills, maxDamage, gameDurationSeconds);
+            opScoreMap.put(participantKey(participant), opScore);
+        }
+
+        List<Map.Entry<String, Double>> rankedScores = opScoreMap.entrySet()
+                .stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .toList();
+
+        Map<String, Integer> opRankMap = new HashMap<>();
+
+        for (int i = 0; i < rankedScores.size(); i++) {
+            opRankMap.put(rankedScores.get(i).getKey(), i + 1);
+        }
+
+        List<MatchParticipantResponse> blueTeam = new ArrayList<>();
+        List<MatchParticipantResponse> redTeam = new ArrayList<>();
+
+        for (MatchParticipant participant : participantRows) {
+            int teamId = defaultInt(participant.getTeamId(), 0);
+            int teamKills = teamId == 100 ? blueTeamTotalKills : redTeamTotalKills;
+            int teamDamage = teamId == 100 ? blueTeamTotalDamage : redTeamTotalDamage;
+
+            MatchParticipantResponse participantResponse = toParticipantResponse(
+                    participant,
+                    latestVersion,
+                    runeMap,
+                    queueId,
+                    teamKills,
+                    teamDamage,
+                    gameDurationSeconds,
+                    opScoreMap,
+                    opRankMap
+            );
+
+            if (teamId == 100) {
+                blueTeam.add(participantResponse);
+            } else if (teamId == 200) {
+                redTeam.add(participantResponse);
+            }
+        }
+
+        blueTeam.sort(Comparator.comparingInt(participant -> positionOrder(participant.getTeamPosition())));
+        redTeam.sort(Comparator.comparingInt(participant -> positionOrder(participant.getTeamPosition())));
+
+        MatchParticipantResponse targetResponse = toParticipantResponse(
+                targetParticipant,
+                latestVersion,
+                runeMap,
+                queueId,
+                defaultInt(targetParticipant.getTeamId(), 0) == 100 ? blueTeamTotalKills : redTeamTotalKills,
+                defaultInt(targetParticipant.getTeamId(), 0) == 100 ? blueTeamTotalDamage : redTeamTotalDamage,
+                gameDurationSeconds,
+                opScoreMap,
+                opRankMap
+        );
+
+        MatchTeamSummaryResponse blueTeamSummary = buildCachedTeamSummary(
+                100,
+                Objects.equals(matchEntity.getWinningTeamId(), 100),
+                blueTeamTotalKills,
+                blueTeamTotalGold
+        );
+
+        MatchTeamSummaryResponse redTeamSummary = buildCachedTeamSummary(
+                200,
+                Objects.equals(matchEntity.getWinningTeamId(), 200),
+                redTeamTotalKills,
+                redTeamTotalGold
+        );
+
+        return MatchSummaryResponse.builder()
+                .matchId(matchId)
+                .gameStartTimestamp(gameStartTimestamp)
+                .playedAtText(formatPlayedAt(gameStartTimestamp))
+                .championName(targetResponse.getChampionName())
+                .championImageUrl(targetResponse.getChampionImageUrl())
+                .win(targetResponse.getWin())
+                .resultText(Boolean.TRUE.equals(targetResponse.getWin()) ? "승리" : "패배")
+                .kills(targetResponse.getKills())
+                .deaths(targetResponse.getDeaths())
+                .assists(targetResponse.getAssists())
+                .kda(targetResponse.getKda())
+                .killParticipation(targetResponse.getKillParticipation())
+                .position(targetResponse.getTeamPosition())
+                .gameMode("-")
+                .queueType(queueType(queueId))
+                .queueId(queueId)
+                .gameDurationSeconds(gameDurationSeconds)
+                .gameDurationText(formatDuration(gameDurationSeconds))
+                .totalCs(targetResponse.getTotalCs())
+                .csPerMinute(targetResponse.getCsPerMinute())
+                .goldEarned(targetResponse.getGoldEarned())
+                .totalDamageDealtToChampions(targetResponse.getTotalDamageDealtToChampions())
+                .totalDamageTaken(targetResponse.getTotalDamageTaken())
+                .visionScore(targetResponse.getVisionScore())
+                .wardsPlaced(targetResponse.getWardsPlaced())
+                .wardsKilled(targetResponse.getWardsKilled())
+                .controlWardsPlaced(targetResponse.getControlWardsPlaced())
+                .opScore(targetResponse.getOpScore())
+                .opScoreRank(targetResponse.getOpScoreRank())
+                .opScoreBadge(targetResponse.getOpScoreBadge())
+                .rankTier(targetResponse.getRankTier())
+                .items(targetResponse.getItems())
+                .summonerSpells(targetResponse.getSummonerSpells())
+                .runes(targetResponse.getRunes())
+                .blueTeam(blueTeam)
+                .redTeam(redTeam)
+                .blueTeamTotalKills(blueTeamTotalKills)
+                .redTeamTotalKills(redTeamTotalKills)
+                .blueTeamTotalGold(blueTeamTotalGold)
+                .redTeamTotalGold(redTeamTotalGold)
+                .maxDamage(maxDamage)
+                .blueTeamSummary(blueTeamSummary)
+                .redTeamSummary(redTeamSummary)
+                .build();
+    }
+
+    private MatchTeamSummaryResponse buildCachedTeamSummary(
+            Integer teamId,
+            Boolean win,
+            Integer totalKills,
+            Integer totalGold
+    ) {
+        return MatchTeamSummaryResponse.builder()
+                .teamId(teamId)
+                .win(win)
+                .totalKills(totalKills)
+                .totalGold(totalGold)
+                .baronKills(0)
+                .dragonKills(0)
+                .riftHeraldKills(0)
+                .hordeKills(0)
+                .towerKills(0)
+                .inhibitorKills(0)
+                .bans(List.of())
+                .build();
+    }
+
+    private void saveRiotMatchDataToDbIfMissing(String matchId, Map<String, Object> matchData) {
+        try {
+            JsonNode root = objectMapper.convertValue(matchData, JsonNode.class);
+            riotDataCollectionService.saveMatchDetailIfAbsent(matchId, root);
+        } catch (Exception ignored) {
+            // 전적 조회 응답은 막지 않는다. 다음 검색에서 다시 Riot API 또는 DB 캐시를 사용한다.
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private MatchSummaryResponse getMatchSummary(
             String matchId,
@@ -172,6 +397,8 @@ public class MatchSearchService {
         if (matchData == null || !(matchData.get("info") instanceof Map<?, ?> rawInfo)) {
             return null;
         }
+
+        saveRiotMatchDataToDbIfMissing(matchId, matchData);
 
         Map<String, Object> info = (Map<String, Object>) rawInfo;
 
@@ -358,6 +585,82 @@ public class MatchSearchService {
     }
 
     private MatchParticipantResponse toParticipantResponse(
+            MatchParticipant participant,
+            String latestVersion,
+            Map<Integer, AssetDto> runeMap,
+            Integer queueId,
+            Integer teamKills,
+            Integer teamDamage,
+            Integer gameDurationSeconds,
+            Map<String, Double> opScoreMap,
+            Map<String, Integer> opRankMap
+    ) {
+        String championName = defaultString(participant.getChampionName(), "Unknown");
+
+        Integer kills = defaultInt(participant.getKills(), 0);
+        Integer deaths = defaultInt(participant.getDeaths(), 0);
+        Integer assists = defaultInt(participant.getAssists(), 0);
+        Integer totalMinionsKilled = defaultInt(participant.getTotalMinionsKilled(), 0);
+        Integer neutralMinionsKilled = defaultInt(participant.getNeutralMinionsKilled(), 0);
+        Integer totalCs = totalMinionsKilled + neutralMinionsKilled;
+        Integer damage = defaultInt(participant.getTotalDamageDealtToChampions(), 0);
+
+        Double kda = calculateKda(kills, deaths, assists);
+
+        Integer killParticipation = teamKills == null || teamKills == 0
+                ? 0
+                : (int) Math.round(((kills + assists) * 100.0) / teamKills);
+
+        Double damageShare = teamDamage == null || teamDamage == 0
+                ? 0.0
+                : round1((damage * 100.0) / teamDamage);
+
+        Double csPerMinute = gameDurationSeconds == null || gameDurationSeconds == 0
+                ? 0.0
+                : round1(totalCs / (gameDurationSeconds / 60.0));
+
+        String key = participantKey(participant);
+        Double opScore = round1(opScoreMap.getOrDefault(key, 0.0));
+        Integer opRank = opRankMap.getOrDefault(key, 10);
+
+        return MatchParticipantResponse.builder()
+                .puuid(defaultString(participant.getPuuid(), ""))
+                .summonerId("")
+                .summonerName(buildRiotName(participant))
+                .riotGameName(defaultString(participant.getRiotGameName(), ""))
+                .riotTagLine(defaultString(participant.getRiotTagLine(), ""))
+                .teamId(defaultInt(participant.getTeamId(), 0))
+                .teamPosition(getPosition(participant))
+                .championName(championName)
+                .championImageUrl(championImageUrl(latestVersion, championName))
+                .championLevel(0)
+                .win(Boolean.TRUE.equals(participant.getWin()))
+                .kills(kills)
+                .deaths(deaths)
+                .assists(assists)
+                .kda(kda)
+                .killParticipation(killParticipation)
+                .damageShare(damageShare)
+                .totalCs(totalCs)
+                .csPerMinute(csPerMinute)
+                .goldEarned(defaultInt(participant.getGoldEarned(), 0))
+                .totalDamageDealtToChampions(damage)
+                .totalDamageTaken(defaultInt(participant.getTotalDamageTaken(), 0))
+                .visionScore(defaultInt(participant.getVisionScore(), 0))
+                .wardsPlaced(defaultInt(participant.getWardsPlaced(), 0))
+                .wardsKilled(defaultInt(participant.getWardsKilled(), 0))
+                .controlWardsPlaced(0)
+                .opScore(opScore)
+                .opScoreRank(opRank)
+                .opScoreBadge(opScoreBadge(opRank, Boolean.TRUE.equals(participant.getWin())))
+                .rankTier("Unranked")
+                .items(makeItems(participant, latestVersion))
+                .summonerSpells(makeSummonerSpells(participant, latestVersion))
+                .runes(makeRunes(participant, runeMap))
+                .build();
+    }
+
+    private MatchParticipantResponse toParticipantResponse(
             Map<String, Object> participant,
             String latestVersion,
             Map<Integer, AssetDto> runeMap,
@@ -427,7 +730,7 @@ public class MatchSearchService {
                 .opScore(opScore)
                 .opScoreRank(opRank)
                 .opScoreBadge(opScoreBadge(opRank, booleanValue(participant.get("win"), false)))
-                .rankTier(getRankTier(stringValue(participant.get("summonerId"), ""), queueId, rankCache))
+                .rankTier("Unranked")
                 .items(makeItems(participant, latestVersion))
                 .summonerSpells(makeSummonerSpells(participant, latestVersion))
                 .runes(makeRunes(participant, runeMap))
@@ -536,6 +839,43 @@ public class MatchSearchService {
     }
 
     private Double calculateOpScore(
+            MatchParticipant participant,
+            Integer teamKills,
+            Integer maxDamage,
+            Integer gameDurationSeconds
+    ) {
+        Integer kills = defaultInt(participant.getKills(), 0);
+        Integer deaths = defaultInt(participant.getDeaths(), 0);
+        Integer assists = defaultInt(participant.getAssists(), 0);
+        Integer damage = defaultInt(participant.getTotalDamageDealtToChampions(), 0);
+        Integer visionScore = defaultInt(participant.getVisionScore(), 0);
+        Integer totalCs = defaultInt(participant.getTotalMinionsKilled(), 0)
+                + defaultInt(participant.getNeutralMinionsKilled(), 0);
+
+        Double kda = calculateKda(kills, deaths, assists);
+
+        double killParticipationScore = teamKills == null || teamKills == 0
+                ? 0
+                : Math.min(20, ((kills + assists) * 100.0 / teamKills) * 0.2);
+
+        double damageScore = maxDamage == null || maxDamage == 0
+                ? 0
+                : Math.min(20, (damage * 100.0 / maxDamage) * 0.2);
+
+        double kdaScore = Math.min(25, kda * 3.0);
+
+        double csPerMinute = gameDurationSeconds == null || gameDurationSeconds == 0
+                ? 0
+                : totalCs / (gameDurationSeconds / 60.0);
+
+        double csScore = Math.min(15, csPerMinute * 1.5);
+        double visionScorePart = Math.min(10, visionScore * 0.2);
+        double winBonus = Boolean.TRUE.equals(participant.getWin()) ? 5 : 0;
+
+        return round1(25 + killParticipationScore + damageScore + kdaScore + csScore + visionScorePart + winBonus);
+    }
+
+    private Double calculateOpScore(
             Map<String, Object> participant,
             Integer teamKills,
             Integer maxDamage,
@@ -593,6 +933,33 @@ public class MatchSearchService {
                 + stringValue(participant.get("teamId"), "");
     }
 
+    private String participantKey(MatchParticipant participant) {
+        return defaultString(participant.getPuuid(), "")
+                + "_"
+                + defaultString(participant.getChampionName(), "")
+                + "_"
+                + defaultInt(participant.getTeamId(), 0);
+    }
+
+    private String buildRiotName(MatchParticipant participant) {
+        String riotGameName = defaultString(participant.getRiotGameName(), "");
+        String riotTagLine = defaultString(participant.getRiotTagLine(), "");
+
+        if (!riotGameName.isBlank()) {
+            return riotTagLine.isBlank()
+                    ? riotGameName
+                    : riotGameName + "#" + riotTagLine;
+        }
+
+        String summonerName = defaultString(participant.getSummonerName(), "");
+
+        if (!summonerName.isBlank()) {
+            return summonerName;
+        }
+
+        return "Unknown";
+    }
+
     private String buildRiotName(Map<String, Object> participant) {
         String riotGameName = stringValue(participant.get("riotIdGameName"), "");
         String riotTagLine = stringValue(participant.get("riotIdTagline"), "");
@@ -610,6 +977,84 @@ public class MatchSearchService {
         }
 
         return "Unknown";
+    }
+
+    private List<AssetDto> makeItems(MatchParticipant participant, String version) {
+        List<Integer> itemIds = List.of(
+                defaultInt(participant.getItem0(), 0),
+                defaultInt(participant.getItem1(), 0),
+                defaultInt(participant.getItem2(), 0),
+                defaultInt(participant.getItem3(), 0),
+                defaultInt(participant.getItem4(), 0),
+                defaultInt(participant.getItem5(), 0),
+                defaultInt(participant.getItem6(), 0)
+        );
+
+        List<AssetDto> items = new ArrayList<>();
+
+        for (Integer itemId : itemIds) {
+            if (itemId == null || itemId == 0) {
+                continue;
+            }
+
+            items.add(
+                    AssetDto.builder()
+                            .id(String.valueOf(itemId))
+                            .name("아이템 " + itemId)
+                            .description("장착 아이템")
+                            .imageUrl(itemImageUrl(version, itemId))
+                            .build()
+            );
+        }
+
+        return items;
+    }
+
+    private List<AssetDto> makeSummonerSpells(MatchParticipant participant, String version) {
+        List<AssetDto> spells = new ArrayList<>();
+
+        int spell1Id = defaultInt(participant.getSummoner1Id(), 0);
+        int spell2Id = defaultInt(participant.getSummoner2Id(), 0);
+
+        if (spell1Id != 0) {
+            spells.add(makeSpellAsset(version, spell1Id));
+        }
+
+        if (spell2Id != 0) {
+            spells.add(makeSpellAsset(version, spell2Id));
+        }
+
+        return spells;
+    }
+
+    private List<AssetDto> makeRunes(MatchParticipant participant, Map<Integer, AssetDto> runeMap) {
+        List<AssetDto> runes = new ArrayList<>();
+
+        Integer mainRuneId = participant.getMainRuneId();
+        if (mainRuneId != null) {
+            AssetDto mainRune = runeMap.get(mainRuneId);
+            if (mainRune != null) {
+                runes.add(mainRune);
+            }
+        }
+
+        Integer primaryStyleId = participant.getPrimaryStyleId();
+        if (primaryStyleId != null) {
+            AssetDto primaryStyle = runeMap.get(primaryStyleId);
+            if (primaryStyle != null && runes.stream().noneMatch(rune -> Objects.equals(rune.getId(), primaryStyle.getId()))) {
+                runes.add(primaryStyle);
+            }
+        }
+
+        Integer subStyleId = participant.getSubStyleId();
+        if (subStyleId != null) {
+            AssetDto subStyle = runeMap.get(subStyleId);
+            if (subStyle != null && runes.stream().noneMatch(rune -> Objects.equals(rune.getId(), subStyle.getId()))) {
+                runes.add(subStyle);
+            }
+        }
+
+        return runes;
     }
 
     private List<AssetDto> makeItems(Map<String, Object> participant, String version) {
@@ -804,6 +1249,22 @@ public class MatchSearchService {
             rankCache.put(summonerId, "Unranked");
             return "Unranked";
         }
+    }
+
+    private String getPosition(MatchParticipant participant) {
+        String teamPosition = defaultString(participant.getTeamPosition(), "");
+
+        if (!teamPosition.isBlank()) {
+            return normalizePosition(teamPosition);
+        }
+
+        String individualPosition = defaultString(participant.getIndividualPosition(), "");
+
+        if (!individualPosition.isBlank()) {
+            return normalizePosition(individualPosition);
+        }
+
+        return "-";
     }
 
     private String getPosition(Map<String, Object> participant) {
@@ -1036,6 +1497,14 @@ public class MatchSearchService {
         }
 
         return round2((kills + assists) / (double) deaths);
+    }
+
+    private String defaultString(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private Integer defaultInt(Integer value, Integer fallback) {
+        return value == null ? fallback : value;
     }
 
     private String stringValue(Object value, String fallback) {

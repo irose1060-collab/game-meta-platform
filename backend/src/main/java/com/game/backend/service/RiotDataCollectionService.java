@@ -10,6 +10,7 @@ import com.game.backend.repository.MatchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
@@ -92,6 +93,28 @@ public class RiotDataCollectionService {
 
     public CollectionResultResponse collectMatches(String gameName, String tagLine, int count) {
         return collectRecentMatchesByRiotId(gameName, tagLine, count);
+    }
+
+    @Transactional
+    public boolean saveMatchDetailIfAbsent(String matchId, JsonNode root) {
+        if (matchId == null || matchId.isBlank()) {
+            return false;
+        }
+
+        if (root == null || root.isMissingNode()) {
+            return false;
+        }
+
+        if (matchRepository.existsByMatchId(matchId)) {
+            return false;
+        }
+
+        try {
+            saveMatchDetail(matchId, root);
+            return true;
+        } catch (DataIntegrityViolationException ignored) {
+            return false;
+        }
     }
 
     private List<String> fetchMatchIds(String puuid, int count, int queueId) {
