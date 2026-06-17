@@ -8,6 +8,7 @@ import com.game.backend.dto.MatchTeamSummaryResponse;
 import com.game.backend.dto.RiotAccountResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,11 @@ public class MatchSearchService {
 
     @Value("${riot.platform.base-url:https://kr.api.riotgames.com}")
     private String riotPlatformBaseUrl;
+
+    @Cacheable(
+            value = "matchSearch",
+            key = "(#gameName == null ? '' : #gameName.trim().toLowerCase()) + ':' + (#tagLine == null ? 'kr1' : #tagLine.trim().toLowerCase()) + ':' + #count"
+    )
 
     public MatchSearchResponse searchMatches(String gameName, String tagLine, int count) {
         int safeCount = Math.min(Math.max(count, 1), 10);
