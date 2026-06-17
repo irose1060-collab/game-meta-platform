@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
+import WinAnalysisCard from "@/components/WinAnalysisCard";
 import type {
   MatchParticipantResponse,
   MatchSearchResponse,
@@ -149,6 +150,15 @@ export default function HeroSearch() {
                   <strong>{result.averageKda.toFixed(2)}</strong>
                 </p>
               </div>
+
+              <WinAnalysisCard
+                gameName={result.gameName}
+                tagLine={result.tagLine}
+                totalMatches={result.totalMatches}
+                wins={result.wins}
+                losses={result.losses}
+                matches={result.matches ?? []}
+              />
 
               <p className="success-message">
                 참가자 닉네임을 클릭하면 해당 유저의 최근 10경기를 다시
