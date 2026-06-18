@@ -57,6 +57,10 @@ public class MatchSummaryResponse {
     private List<AssetDto> summonerSpells;
     private List<AssetDto> runes;
 
+    private List<ItemBuildStepResponse> itemBuild;
+    private List<SkillOrderStepResponse> skillOrder;
+    private String skillOrderText;
+
     private List<MatchParticipantResponse> blueTeam;
     private List<MatchParticipantResponse> redTeam;
 

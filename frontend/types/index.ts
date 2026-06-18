@@ -112,6 +112,33 @@ export type AssetDto = {
   imageUrl: string;
 };
 
+export type ItemBuildStepResponse = {
+  minute: number;
+  timestampMs: number;
+  itemId: string;
+  itemName: string;
+  imageUrl: string;
+  eventType: string;
+};
+
+export type SkillOrderStepResponse = {
+  level: number;
+  minute: number;
+  skillSlot: number;
+  skillKey: string;
+};
+
+export type HealthResponse = {
+  status: string;
+  service: string;
+  database: string;
+  latestPatch: string;
+  matchCount: number;
+  participantCount: number;
+  championStatCount: number;
+  checkedAt: string;
+};
+
 export type MatchParticipantResponse = {
   puuid: string;
   summonerId: string;
@@ -222,6 +249,10 @@ export type MatchSummaryResponse = {
   items: AssetDto[];
   summonerSpells: AssetDto[];
   runes: AssetDto[];
+
+  itemBuild: ItemBuildStepResponse[];
+  skillOrder: SkillOrderStepResponse[];
+  skillOrderText: string;
 
   blueTeam: MatchParticipantResponse[];
   redTeam: MatchParticipantResponse[];

@@ -3,11 +3,13 @@ package com.game.backend.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.game.backend.dto.AssetDto;
+import com.game.backend.dto.ItemBuildStepResponse;
 import com.game.backend.dto.MatchParticipantResponse;
 import com.game.backend.dto.MatchSearchResponse;
 import com.game.backend.dto.MatchSummaryResponse;
 import com.game.backend.dto.MatchTeamSummaryResponse;
 import com.game.backend.dto.RiotAccountResponse;
+import com.game.backend.dto.SkillOrderStepResponse;
 import com.game.backend.entity.MatchEntity;
 import com.game.backend.entity.MatchParticipant;
 import com.game.backend.repository.MatchParticipantRepository;
@@ -294,6 +296,8 @@ public class MatchSearchService {
                 redTeamTotalGold
         );
 
+        TimelineInsight timelineInsight = getTimelineInsight(matchId, searchedPuuid, latestVersion);
+
         return MatchSummaryResponse.builder()
                 .matchId(matchId)
                 .gameStartTimestamp(gameStartTimestamp)
@@ -329,6 +333,9 @@ public class MatchSearchService {
                 .items(targetResponse.getItems())
                 .summonerSpells(targetResponse.getSummonerSpells())
                 .runes(targetResponse.getRunes())
+                .itemBuild(timelineInsight.itemBuild())
+                .skillOrder(timelineInsight.skillOrder())
+                .skillOrderText(timelineInsight.skillOrderText())
                 .blueTeam(blueTeam)
                 .redTeam(redTeam)
                 .blueTeamTotalKills(blueTeamTotalKills)
@@ -549,6 +556,8 @@ public class MatchSearchService {
                 opRankMap
         );
 
+        TimelineInsight timelineInsight = getTimelineInsight(matchId, searchedPuuid, latestVersion);
+
         return MatchSummaryResponse.builder()
                 .matchId(matchId)
                 .gameStartTimestamp(gameStartTimestamp)
@@ -584,6 +593,9 @@ public class MatchSearchService {
                 .items(targetResponse.getItems())
                 .summonerSpells(targetResponse.getSummonerSpells())
                 .runes(targetResponse.getRunes())
+                .itemBuild(timelineInsight.itemBuild())
+                .skillOrder(timelineInsight.skillOrder())
+                .skillOrderText(timelineInsight.skillOrderText())
                 .blueTeam(blueTeam)
                 .redTeam(redTeam)
                 .blueTeamTotalKills(blueTeamTotalKills)
@@ -742,7 +754,7 @@ public class MatchSearchService {
                 .opScore(opScore)
                 .opScoreRank(opRank)
                 .opScoreBadge(opScoreBadge(opRank, booleanValue(participant.get("win"), false)))
-                .rankTier("Unranked")
+                .rankTier(getRankTier(stringValue(participant.get("summonerId"), ""), queueId, rankCache))
                 .items(makeItems(participant, latestVersion))
                 .summonerSpells(makeSummonerSpells(participant, latestVersion))
                 .runes(makeRunes(participant, runeMap))
@@ -1501,6 +1513,188 @@ public class MatchSearchService {
         return championKeyMap;
     }
 
+
+    @SuppressWarnings("unchecked")
+    private TimelineInsight getTimelineInsight(String matchId, String searchedPuuid, String version) {
+        try {
+            URI uri = UriComponentsBuilder
+                    .fromHttpUrl(riotBaseUrl)
+                    .pathSegment("lol", "match", "v5", "matches", matchId, "timeline")
+                    .build()
+                    .encode()
+                    .toUri();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Riot-Token", riotApiKey);
+
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    uri,
+                    HttpMethod.GET,
+                    new HttpEntity<Void>(headers),
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    }
+            );
+
+            Map<String, Object> timeline = response.getBody();
+            if (timeline == null || !(timeline.get("info") instanceof Map<?, ?> rawInfo)) {
+                return TimelineInsight.empty();
+            }
+
+            Map<String, Object> info = (Map<String, Object>) rawInfo;
+            int participantId = resolveTimelineParticipantId(info, searchedPuuid);
+            if (participantId == 0) {
+                return TimelineInsight.empty();
+            }
+
+            List<ItemBuildStepResponse> itemBuild = new ArrayList<>();
+            List<SkillOrderStepResponse> skillOrder = new ArrayList<>();
+
+            Object framesObject = info.get("frames");
+            if (!(framesObject instanceof List<?> frames)) {
+                return TimelineInsight.empty();
+            }
+
+            int skillLevel = 1;
+            Set<String> seenItemEvents = new LinkedHashSet<>();
+
+            for (Object frameObject : frames) {
+                if (!(frameObject instanceof Map<?, ?> rawFrame)) {
+                    continue;
+                }
+
+                Map<String, Object> frame = (Map<String, Object>) rawFrame;
+                Object eventsObject = frame.get("events");
+
+                if (!(eventsObject instanceof List<?> events)) {
+                    continue;
+                }
+
+                for (Object eventObject : events) {
+                    if (!(eventObject instanceof Map<?, ?> rawEvent)) {
+                        continue;
+                    }
+
+                    Map<String, Object> event = (Map<String, Object>) rawEvent;
+                    String type = stringValue(event.get("type"), "");
+                    int eventParticipantId = intValue(event.get("participantId"), 0);
+
+                    if (eventParticipantId != participantId) {
+                        continue;
+                    }
+
+                    long timestamp = longValue(event.get("timestamp"), 0L);
+                    int minute = (int) Math.max(0, Math.round(timestamp / 60000.0));
+
+                    if ("ITEM_PURCHASED".equals(type)) {
+                        int itemId = intValue(event.get("itemId"), 0);
+
+                        if (itemId == 0 || !isBuildItem(itemId)) {
+                            continue;
+                        }
+
+                        String eventKey = itemId + ":" + timestamp;
+                        if (!seenItemEvents.add(eventKey)) {
+                            continue;
+                        }
+
+                        itemBuild.add(ItemBuildStepResponse.builder()
+                                .minute(minute)
+                                .timestampMs(timestamp)
+                                .itemId(String.valueOf(itemId))
+                                .itemName("아이템 " + itemId)
+                                .imageUrl(itemImageUrl(version, itemId))
+                                .eventType("PURCHASED")
+                                .build());
+
+                        if (itemBuild.size() >= 14) {
+                            continue;
+                        }
+                    }
+
+                    if ("SKILL_LEVEL_UP".equals(type)) {
+                        int skillSlot = intValue(event.get("skillSlot"), 0);
+
+                        if (skillSlot <= 0 || skillSlot > 4) {
+                            continue;
+                        }
+
+                        skillOrder.add(SkillOrderStepResponse.builder()
+                                .level(skillLevel++)
+                                .minute(minute)
+                                .skillSlot(skillSlot)
+                                .skillKey(skillKey(skillSlot))
+                                .build());
+                    }
+                }
+            }
+
+            return new TimelineInsight(
+                    itemBuild.stream().limit(14).toList(),
+                    skillOrder.stream().limit(18).toList(),
+                    skillOrderText(skillOrder)
+            );
+        } catch (Exception ignored) {
+            return TimelineInsight.empty();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private int resolveTimelineParticipantId(Map<String, Object> info, String searchedPuuid) {
+        Object participantsObject = info.get("participants");
+
+        if (!(participantsObject instanceof List<?> participants)) {
+            return 0;
+        }
+
+        for (Object participantObject : participants) {
+            if (!(participantObject instanceof Map<?, ?> rawParticipant)) {
+                continue;
+            }
+
+            Map<String, Object> participant = (Map<String, Object>) rawParticipant;
+            String puuid = stringValue(participant.get("puuid"), "");
+
+            if (Objects.equals(puuid, searchedPuuid)) {
+                return intValue(participant.get("participantId"), 0);
+            }
+        }
+
+        return 0;
+    }
+
+    private boolean isBuildItem(int itemId) {
+        Set<Integer> excluded = Set.of(
+                2003, 2010, 2031, 2033, 2055,
+                2138, 2139, 2140,
+                3340, 3363, 3364, 3513
+        );
+
+        return itemId >= 1000 && !excluded.contains(itemId);
+    }
+
+    private String skillKey(int skillSlot) {
+        return switch (skillSlot) {
+            case 1 -> "Q";
+            case 2 -> "W";
+            case 3 -> "E";
+            case 4 -> "R";
+            default -> "-";
+        };
+    }
+
+    private String skillOrderText(List<SkillOrderStepResponse> skillOrder) {
+        if (skillOrder == null || skillOrder.isEmpty()) {
+            return "-";
+        }
+
+        return skillOrder.stream()
+                .limit(6)
+                .map(SkillOrderStepResponse::getSkillKey)
+                .filter(key -> key != null && !key.isBlank())
+                .reduce((left, right) -> left + " → " + right)
+                .orElse("-");
+    }
+
     private Double calculateKda(Integer kills, Integer deaths, Integer assists) {
         if (deaths == 0) {
             return round2(kills + assists);
@@ -1555,6 +1749,16 @@ public class MatchSearchService {
 
     private Double round2(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private record TimelineInsight(
+            List<ItemBuildStepResponse> itemBuild,
+            List<SkillOrderStepResponse> skillOrder,
+            String skillOrderText
+    ) {
+        private static TimelineInsight empty() {
+            return new TimelineInsight(List.of(), List.of(), "-");
+        }
     }
 
     private record SpellInfo(String name, String imageFull) {

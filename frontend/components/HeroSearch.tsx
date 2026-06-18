@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { apiFetch } from "@/lib/api";
 import WinAnalysisCard from "@/components/WinAnalysisCard";
 import type {
   AssetDto,
+  ItemBuildStepResponse,
   MatchParticipantResponse,
   MatchSearchResponse,
   MatchSummaryResponse,
@@ -16,6 +17,15 @@ const TEAM_BLUE = "#38bdf8";
 const TEAM_RED = "#fb7185";
 const GOLD = "#f5c542";
 const TEXT_DIM = "#94a3b8";
+
+type SavedSearch = {
+  gameName: string;
+  tagLine: string;
+  searchedAt: number;
+};
+
+const RECENT_SEARCH_KEY = "meta_gg_recent_searches";
+const FAVORITE_SEARCH_KEY = "meta_gg_favorite_searches";
 
 const POSITION_LABELS: Record<string, string> = {
   TOP: "탑",
@@ -35,6 +45,51 @@ export default function HeroSearch() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeSearchText, setActiveSearchText] = useState("");
+  const [recentSearches, setRecentSearches] = useState<SavedSearch[]>([]);
+  const [favoriteSearches, setFavoriteSearches] = useState<SavedSearch[]>([]);
+
+  useEffect(() => {
+    setRecentSearches(readSavedSearches(RECENT_SEARCH_KEY));
+    setFavoriteSearches(readSavedSearches(FAVORITE_SEARCH_KEY));
+  }, []);
+
+  const saveRecentSearch = (item: SavedSearch) => {
+    setRecentSearches((prev) => {
+      const next = dedupeSearches([item, ...prev]).slice(0, 8);
+      writeSavedSearches(RECENT_SEARCH_KEY, next);
+      return next;
+    });
+  };
+
+  const toggleFavoriteSearch = (item: SavedSearch) => {
+    setFavoriteSearches((prev) => {
+      const exists = prev.some(
+        (saved) =>
+          saved.gameName.toLowerCase() === item.gameName.toLowerCase() &&
+          saved.tagLine.toLowerCase() === item.tagLine.toLowerCase()
+      );
+
+      const next = exists
+        ? prev.filter(
+            (saved) =>
+              !(
+                saved.gameName.toLowerCase() === item.gameName.toLowerCase() &&
+                saved.tagLine.toLowerCase() === item.tagLine.toLowerCase()
+              )
+          )
+        : dedupeSearches([item, ...prev]).slice(0, 8);
+
+      writeSavedSearches(FAVORITE_SEARCH_KEY, next);
+      return next;
+    });
+  };
+
+  const isFavoriteSearch = (name: string, tag: string) =>
+    favoriteSearches.some(
+      (saved) =>
+        saved.gameName.toLowerCase() === name.toLowerCase() &&
+        saved.tagLine.toLowerCase() === tag.toLowerCase()
+    );
 
   const searchByRiotId = async (name: string, tag: string) => {
     const cleanName = name.trim();
@@ -66,6 +121,11 @@ export default function HeroSearch() {
       setGameName(data.gameName || cleanName);
       setTagLine(data.tagLine || cleanTag);
       setResult(data);
+      saveRecentSearch({
+        gameName: data.gameName || cleanName,
+        tagLine: data.tagLine || cleanTag,
+        searchedAt: Date.now(),
+      });
 
       const target = document.getElementById("search-result-section");
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -138,6 +198,29 @@ export default function HeroSearch() {
           </button>
         </div>
 
+        {(favoriteSearches.length > 0 || recentSearches.length > 0) && (
+          <div style={savedSearchBoxStyle}>
+            {favoriteSearches.length > 0 && (
+              <SavedSearchLine
+                title="즐겨찾기"
+                searches={favoriteSearches}
+                onSearch={searchByRiotId}
+                onToggleFavorite={toggleFavoriteSearch}
+                favorites={favoriteSearches}
+              />
+            )}
+            {recentSearches.length > 0 && (
+              <SavedSearchLine
+                title="최근 검색"
+                searches={recentSearches}
+                onSearch={searchByRiotId}
+                onToggleFavorite={toggleFavoriteSearch}
+                favorites={favoriteSearches}
+              />
+            )}
+          </div>
+        )}
+
         {error && <p className="error-message">{error}</p>}
 
         {loading && activeSearchText && (
@@ -169,14 +252,32 @@ export default function HeroSearch() {
                 </p>
               </div>
 
-              <WinAnalysisCard
-                gameName={result.gameName}
+              <div style={resultActionPanelStyle}>
+                <button
+                  type="button"
+                  style={favoriteButtonStyle}
+                  onClick={() =>
+                    toggleFavoriteSearch({
+                      gameName: result.gameName,
+                      tagLine: result.tagLine,
+                      searchedAt: Date.now(),
+                    })
+                  }
+                >
+                  {isFavoriteSearch(result.gameName, result.tagLine)
+                    ? "★ 즐겨찾기 해제"
+                    : "☆ 즐겨찾기"}
+                </button>
+
+                <WinAnalysisCard
+                  gameName={result.gameName}
                 tagLine={result.tagLine}
                 totalMatches={result.totalMatches}
                 wins={result.wins}
                 losses={result.losses}
-                matches={result.matches ?? []}
-              />
+                  matches={result.matches ?? []}
+                />
+              </div>
             </div>
 
             <p className="success-message">
@@ -198,6 +299,101 @@ export default function HeroSearch() {
       </div>
     </section>
   );
+}
+
+
+function SavedSearchLine({
+  title,
+  searches,
+  favorites,
+  onSearch,
+  onToggleFavorite,
+}: {
+  title: string;
+  searches: SavedSearch[];
+  favorites: SavedSearch[];
+  onSearch: (gameName: string, tagLine: string) => void;
+  onToggleFavorite: (item: SavedSearch) => void;
+}) {
+  return (
+    <div style={savedSearchLineStyle}>
+      <strong style={{ color: GOLD, fontSize: 12 }}>{title}</strong>
+      <div style={savedSearchChipWrapStyle}>
+        {searches.map((item) => {
+          const activeFavorite = favorites.some(
+            (favorite) =>
+              favorite.gameName.toLowerCase() === item.gameName.toLowerCase() &&
+              favorite.tagLine.toLowerCase() === item.tagLine.toLowerCase()
+          );
+
+          return (
+            <span key={`${title}-${item.gameName}-${item.tagLine}`} style={savedSearchChipStyle}>
+              <button
+                type="button"
+                style={savedSearchButtonStyle}
+                onClick={() => onSearch(item.gameName, item.tagLine)}
+              >
+                {item.gameName} #{item.tagLine}
+              </button>
+              <button
+                type="button"
+                aria-label="즐겨찾기"
+                style={savedSearchStarStyle}
+                onClick={() => onToggleFavorite({ ...item, searchedAt: Date.now() })}
+              >
+                {activeFavorite ? "★" : "☆"}
+              </button>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function readSavedSearches(key: string): SavedSearch[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter(
+        (item) =>
+          item &&
+          typeof item.gameName === "string" &&
+          typeof item.tagLine === "string"
+      )
+      .slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedSearches(key: string, value: SavedSearch[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function dedupeSearches(searches: SavedSearch[]) {
+  const map = new Map<string, SavedSearch>();
+
+  for (const search of searches) {
+    const key = `${search.gameName.trim().toLowerCase()}#${search.tagLine.trim().toLowerCase()}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        gameName: search.gameName.trim(),
+        tagLine: search.tagLine.trim().replace("#", "") || "KR1",
+        searchedAt: search.searchedAt || Date.now(),
+      });
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 function MatchCard({
@@ -272,6 +468,14 @@ function MatchCard({
         </div>
       </div>
 
+      <div style={timelineGridStyle}>
+        <ItemBuildTimeline itemBuild={match.itemBuild ?? []} />
+        <SkillOrderLine
+          skillOrder={match.skillOrder ?? []}
+          skillOrderText={match.skillOrderText}
+        />
+      </div>
+
       <div style={objectivesStyle}>
         <TeamObjectiveSummary
           label="블루팀"
@@ -309,6 +513,65 @@ function MatchCard({
         />
       </div>
     </article>
+  );
+}
+
+
+function ItemBuildTimeline({ itemBuild }: { itemBuild: ItemBuildStepResponse[] }) {
+  const visibleBuild = (itemBuild ?? []).slice(0, 12);
+
+  return (
+    <div style={timelinePanelStyle}>
+      <div style={timelineHeaderStyle}>
+        <strong>아이템 구매 흐름</strong>
+        <span>Timeline API</span>
+      </div>
+
+      {visibleBuild.length === 0 ? (
+        <p style={timelineEmptyTextStyle}>타임라인 데이터가 없거나 아직 수집되지 않았습니다.</p>
+      ) : (
+        <div style={itemTimelineStyle}>
+          {visibleBuild.map((item, index) => (
+            <div key={`${item.itemId}-${item.timestampMs}-${index}`} style={itemTimelineStepStyle}>
+              <span style={timelineMinuteStyle}>{item.minute}분</span>
+              <img src={item.imageUrl} alt={item.itemName} title={item.itemName} style={timelineItemIconStyle} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillOrderLine({
+  skillOrder,
+  skillOrderText,
+}: {
+  skillOrder: { skillKey: string; level: number; minute: number }[];
+  skillOrderText?: string;
+}) {
+  const visibleSkills = (skillOrder ?? []).slice(0, 12);
+
+  return (
+    <div style={timelinePanelStyle}>
+      <div style={timelineHeaderStyle}>
+        <strong>스킬 레벨업</strong>
+        <span>{skillOrderText && skillOrderText !== "-" ? skillOrderText : "Q/W/E/R 순서"}</span>
+      </div>
+
+      {visibleSkills.length === 0 ? (
+        <p style={timelineEmptyTextStyle}>스킬 레벨업 데이터가 없습니다.</p>
+      ) : (
+        <div style={skillOrderWrapStyle}>
+          {visibleSkills.map((skill) => (
+            <div key={`${skill.level}-${skill.minute}-${skill.skillKey}`} style={skillBadgeStyle}>
+              <b>{skill.skillKey}</b>
+              <span>Lv.{skill.level}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -797,4 +1060,149 @@ const assetEmptyStyle: CSSProperties = {
   borderRadius: 7,
   background: "rgba(255,255,255,0.045)",
   border: "1px solid rgba(255,255,255,0.07)",
+};
+
+const savedSearchBoxStyle: CSSProperties = {
+  marginTop: 14,
+  display: "grid",
+  gap: 8,
+  padding: 12,
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.035)",
+  border: "1px solid rgba(255,255,255,0.08)",
+};
+
+const savedSearchLineStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const savedSearchChipWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const savedSearchChipStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  padding: "5px 7px",
+  borderRadius: 999,
+  background: "rgba(0,0,0,0.2)",
+  border: "1px solid rgba(255,255,255,0.08)",
+};
+
+const savedSearchButtonStyle: CSSProperties = {
+  border: "none",
+  background: "transparent",
+  color: "#e5e7eb",
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const savedSearchStarStyle: CSSProperties = {
+  border: "none",
+  background: "transparent",
+  color: GOLD,
+  cursor: "pointer",
+  fontSize: 13,
+  lineHeight: 1,
+};
+
+const resultActionPanelStyle: CSSProperties = {
+  display: "grid",
+  gap: 10,
+  justifyItems: "end",
+  minWidth: 260,
+};
+
+const favoriteButtonStyle: CSSProperties = {
+  border: "1px solid rgba(245,197,66,0.35)",
+  background: "rgba(245,197,66,0.08)",
+  color: "#f8d978",
+  borderRadius: 999,
+  padding: "8px 12px",
+  fontWeight: 950,
+  cursor: "pointer",
+};
+
+const timelineGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1.2fr 0.8fr",
+  gap: 12,
+  padding: "0 16px 16px",
+};
+
+const timelinePanelStyle: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 14,
+  padding: 12,
+  background: "rgba(0,0,0,0.16)",
+  minWidth: 0,
+};
+
+const timelineHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "center",
+  color: "#e5e7eb",
+  fontSize: 12,
+  marginBottom: 10,
+};
+
+const timelineEmptyTextStyle: CSSProperties = {
+  margin: 0,
+  color: TEXT_DIM,
+  fontSize: 12,
+};
+
+const itemTimelineStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  alignItems: "center",
+};
+
+const itemTimelineStepStyle: CSSProperties = {
+  display: "grid",
+  justifyItems: "center",
+  gap: 4,
+};
+
+const timelineMinuteStyle: CSSProperties = {
+  color: TEXT_DIM,
+  fontSize: 10,
+  fontWeight: 800,
+};
+
+const timelineItemIconStyle: CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  objectFit: "cover",
+  background: "#111827",
+  border: "1px solid rgba(255,255,255,0.1)",
+};
+
+const skillOrderWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 6,
+  flexWrap: "wrap",
+};
+
+const skillBadgeStyle: CSSProperties = {
+  width: 38,
+  height: 38,
+  borderRadius: 12,
+  background: "rgba(245,197,66,0.1)",
+  border: "1px solid rgba(245,197,66,0.18)",
+  display: "grid",
+  placeItems: "center",
+  color: "#f8d978",
+  fontSize: 10,
 };
