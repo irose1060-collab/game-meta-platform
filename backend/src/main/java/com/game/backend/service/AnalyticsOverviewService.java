@@ -199,10 +199,9 @@ public class AnalyticsOverviewService {
                 FROM champion_stats
                 WHERE patch = ?
                   AND games >= ?
-                ORDER BY
-                """ + orderBy + """
+                ORDER BY %s
                 LIMIT ?
-                """;
+                """.formatted(orderBy);
 
         return jdbcTemplate.query(
                 sql,
