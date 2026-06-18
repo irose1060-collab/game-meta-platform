@@ -31,6 +31,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class MatchSearchService {
 
+    private static final int SOLO_RANK_QUEUE_ID = 420;
+    private static final int SOLO_RANK_MATCH_COUNT = 20;
+
     private final RiotService riotService;
     private final RestTemplate restTemplate;
     private final RiotDataCollectionService riotDataCollectionService;
@@ -54,7 +57,7 @@ public class MatchSearchService {
     )
 
     public MatchSearchResponse searchMatches(String gameName, String tagLine, int count) {
-        int safeCount = Math.min(Math.max(count, 1), 10);
+        int safeCount = SOLO_RANK_MATCH_COUNT;
 
         RiotAccountResponse account = riotService.getAccountByRiotId(gameName, tagLine);
         String puuid = account.getPuuid();
@@ -127,6 +130,7 @@ public class MatchSearchService {
         URI uri = UriComponentsBuilder
                 .fromHttpUrl(riotBaseUrl)
                 .pathSegment("lol", "match", "v5", "matches", "by-puuid", puuid, "ids")
+                .queryParam("queue", SOLO_RANK_QUEUE_ID)
                 .queryParam("start", 0)
                 .queryParam("count", count)
                 .build()
@@ -181,6 +185,10 @@ public class MatchSearchService {
         Integer gameDurationSeconds = defaultInt(matchEntity.getGameDuration(), 0);
         Long gameStartTimestamp = matchEntity.getGameCreation();
         Integer queueId = defaultInt(matchEntity.getQueueId(), 0);
+
+        if (!Objects.equals(queueId, SOLO_RANK_QUEUE_ID)) {
+            return null;
+        }
 
         int blueTeamTotalKills = 0;
         int redTeamTotalKills = 0;
@@ -409,6 +417,10 @@ public class MatchSearchService {
         Integer gameDurationSeconds = intValue(info.get("gameDuration"), 0);
         Long gameStartTimestamp = longValue(info.get("gameStartTimestamp"), 0L);
         Integer queueId = intValue(info.get("queueId"), 0);
+
+        if (!Objects.equals(queueId, SOLO_RANK_QUEUE_ID)) {
+            return null;
+        }
 
         Map<String, Object> targetParticipant = null;
 
@@ -1229,9 +1241,7 @@ public class MatchSearchService {
                 return "Unranked";
             }
 
-            String preferredQueue = queueId != null && queueId == 440
-                    ? "RANKED_FLEX_SR"
-                    : "RANKED_SOLO_5x5";
+            String preferredQueue = "RANKED_SOLO_5x5";
 
             Map<String, Object> selected = entries.stream()
                     .filter(entry -> preferredQueue.equals(String.valueOf(entry.get("queueType"))))
