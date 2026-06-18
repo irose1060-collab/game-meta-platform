@@ -122,7 +122,7 @@
   border: 1px solid rgba(255, 255, 255, 0.09);
   background: rgba(13, 18, 32, 0.94);
   border-radius: 24px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.28);
 }
 
@@ -148,6 +148,18 @@
 
 .panelBody {
   padding: 16px;
+  overflow: visible;
+}
+
+.positionGuide {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(246, 209, 107, 0.08);
+  border: 1px solid rgba(246, 209, 107, 0.16);
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .positionBarList {
@@ -298,45 +310,214 @@
   font-weight: 950;
 }
 
+.scatterShell {
+  position: relative;
+  overflow: visible;
+}
+
+.scatterLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.scatterLegend span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #a8b0c2;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .scatterWrap {
   position: relative;
   height: 340px;
   border-radius: 18px;
   background:
-    linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px),
-    rgba(255,255,255,0.025);
-  background-size: 25% 25%;
-  overflow: hidden;
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 78% 22%, rgba(246, 209, 107, 0.12), transparent 28%),
+    rgba(255, 255, 255, 0.025);
+  background-size: 25% 25%, 25% 25%, auto, auto;
+  overflow: visible;
 }
 
 .scatterPoint {
   position: absolute;
-  width: 9px;
-  height: 9px;
   border-radius: 999px;
   background: #f6d16b;
-  box-shadow: 0 0 14px rgba(246, 209, 107, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 0 10px rgba(246, 209, 107, 0.55),
+    0 0 22px rgba(246, 209, 107, 0.28);
   transform: translate(-50%, 50%);
+  cursor: pointer;
+  z-index: 3;
+}
+
+.scatterPoint:hover {
+  z-index: 30;
+  background: #fff3b0;
+  box-shadow:
+    0 0 0 5px rgba(246, 209, 107, 0.14),
+    0 0 24px rgba(246, 209, 107, 0.65);
 }
 
 .scatterTooltip {
   display: none;
   position: absolute;
-  left: 12px;
-  bottom: 12px;
-  white-space: nowrap;
-  border-radius: 12px;
-  background: rgba(7, 10, 18, 0.92);
-  border: 1px solid rgba(246, 209, 107, 0.22);
-  padding: 8px 10px;
+  left: 16px;
+  bottom: 16px;
+  width: 230px;
+  white-space: normal;
+  border-radius: 14px;
+  background: rgba(7, 10, 18, 0.96);
+  border: 1px solid rgba(246, 209, 107, 0.35);
+  padding: 12px;
   color: #e5e7eb;
   font-size: 12px;
-  z-index: 2;
+  line-height: 1.45;
+  z-index: 60;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42);
+  pointer-events: none;
+}
+
+.scatterTooltipLeft {
+  left: auto;
+  right: 16px;
+}
+
+.scatterTooltipDown {
+  bottom: auto;
+  top: 16px;
 }
 
 .scatterPoint:hover .scatterTooltip {
   display: block;
+}
+
+.tooltipName {
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 950;
+  margin-bottom: 3px;
+  overflow-wrap: anywhere;
+}
+
+.tooltipSub {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 9px;
+}
+
+.tooltipGrid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 12px;
+}
+
+.tooltipGrid span {
+  color: #94a3b8;
+}
+
+.tooltipGrid b {
+  color: #f8d978;
+  font-weight: 950;
+}
+
+.scatterAvgVertical,
+.scatterAvgHorizontal {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.scatterAvgVertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(148, 163, 184, 0.45);
+  border-left: 1px dashed rgba(148, 163, 184, 0.55);
+}
+
+.scatterAvgHorizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.45);
+  border-top: 1px dashed rgba(148, 163, 184, 0.55);
+}
+
+.scatterYAxisLabel,
+.scatterXAxisLabel {
+  position: absolute;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.scatterYAxisLabel {
+  left: 12px;
+  top: 12px;
+}
+
+.scatterXAxisLabel {
+  right: 12px;
+  bottom: 10px;
+}
+
+.scatterQuadrantTopLeft,
+.scatterQuadrantTopRight,
+.scatterQuadrantBottomRight {
+  position: absolute;
+  z-index: 2;
+  color: rgba(203, 213, 225, 0.42);
+  font-size: 11px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.scatterQuadrantTopLeft {
+  top: 16px;
+  left: 18px;
+}
+
+.scatterQuadrantTopRight {
+  top: 16px;
+  right: 18px;
+  color: rgba(248, 217, 120, 0.7);
+}
+
+.scatterQuadrantBottomRight {
+  right: 18px;
+  bottom: 34px;
+}
+
+.scatterAxisFooter {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.scatterEmpty {
+  height: 340px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
 .stateBox {

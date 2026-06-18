@@ -2,6 +2,7 @@
 
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { fetchAnalyticsOverview } from "@/lib/analyticsApi";
@@ -30,6 +31,10 @@ function formatNumber(value: number) {
 
 function formatPercent(value: number) {
   return `${value.toFixed(1)}%`;
+}
+
+function formatPercent2(value: number) {
+  return `${value.toFixed(2)}%`;
 }
 
 function championImage(championName: string) {
@@ -94,17 +99,43 @@ export default function StatisticsPage() {
     };
   }, []);
 
-  const scatterBounds = useMemo(() => {
+  const positionMaxPercentage = useMemo(() => {
+    const values = overview?.positionDistribution.map((item) => item.percentage) ?? [];
+    return Math.max(1, ...values);
+  }, [overview]);
+
+  const scatterStats = useMemo(() => {
     const points = overview?.scatterChampions ?? [];
 
+    if (points.length === 0) {
+      return {
+        points,
+        maxPickRate: 1,
+        minWinRate: 40,
+        maxWinRate: 60,
+        avgPickRate: 0,
+        avgWinRate: 0,
+        maxGames: 1,
+      };
+    }
+
     const maxPickRate = Math.max(1, ...points.map((item) => item.pickRate));
-    const minWinRate = Math.min(45, ...points.map((item) => item.winRate));
-    const maxWinRate = Math.max(55, ...points.map((item) => item.winRate));
+    const rawMinWinRate = Math.min(...points.map((item) => item.winRate));
+    const rawMaxWinRate = Math.max(...points.map((item) => item.winRate));
+    const minWinRate = Math.max(0, Math.floor(rawMinWinRate - 4));
+    const maxWinRate = Math.min(100, Math.ceil(rawMaxWinRate + 4));
+    const avgPickRate = points.reduce((sum, item) => sum + item.pickRate, 0) / points.length;
+    const avgWinRate = points.reduce((sum, item) => sum + item.winRate, 0) / points.length;
+    const maxGames = Math.max(1, ...points.map((item) => item.games));
 
     return {
+      points,
       maxPickRate,
       minWinRate,
       maxWinRate,
+      avgPickRate,
+      avgWinRate,
+      maxGames,
     };
   }, [overview]);
 
@@ -125,7 +156,7 @@ export default function StatisticsPage() {
               <h1 className={styles.title}>메타 통계 분석 대시보드</h1>
               <p className={styles.description}>
                 챔피언 티어표가 결과를 보여준다면, 통계 분석 페이지는 수집된
-                데이터의 규모, 포지션별 표본 균형, 지표별 상위 챔피언, 승률과
+                데이터의 규모, 포지션별 메타 다양성, 지표별 상위 챔피언, 승률과
                 픽률의 관계를 시각화합니다.
               </p>
             </div>
@@ -177,57 +208,57 @@ export default function StatisticsPage() {
                 </div>
 
                 <div className={styles.gridTwo}>
-                  <Panel title="포지션별 표본 분포" sub="최신 패치 기준 참가자 포지션 분포">
-                    <div className={styles.positionBarList}>
-                      {overview.positionDistribution.map((item) => (
-                        <div key={item.position} className={styles.positionBarRow}>
-                          <div className={styles.positionName}>
-                            {POSITION_LABELS[item.position] ?? item.position}
-                          </div>
-                          <div className={styles.barTrack}>
-                            <div
-                              className={styles.barFill}
-                              style={{ width: `${Math.min(100, item.percentage)}%` }}
-                            />
-                          </div>
-                          <div className={styles.positionMeta}>
-                            {formatNumber(item.pickCount)} · {formatPercent(item.percentage)}
-                          </div>
-                        </div>
-                      ))}
+                  <Panel
+                    title="포지션별 메타 다양성"
+                    sub={`최소 ${overview.summary.minGames}게임 이상 챔피언 분포`}
+                  >
+                    <div className={styles.positionGuide}>
+                      참가자 수가 아니라, 최신 패치에서 최소 표본을 충족한 챔피언 수 기준입니다.
                     </div>
-                  </Panel>
 
-                  <Panel title="승률 × 픽률 산점도" sub="오른쪽 위일수록 메타 핵심 챔피언">
-                    <div className={styles.scatterWrap}>
-                      {overview.scatterChampions.map((champion) => {
-                        const x = (champion.pickRate / scatterBounds.maxPickRate) * 92 + 4;
-                        const yRange = scatterBounds.maxWinRate - scatterBounds.minWinRate || 1;
-                        const y =
-                          ((champion.winRate - scatterBounds.minWinRate) / yRange) * 86 + 7;
+                    <div className={styles.positionBarList}>
+                      {overview.positionDistribution.map((item) => {
+                        const visualWidth =
+                          positionMaxPercentage === 0
+                            ? 0
+                            : (item.percentage / positionMaxPercentage) * 100;
 
                         return (
-                          <div
-                            key={`${champion.position}-${champion.championId}-${champion.championName}`}
-                            className={styles.scatterPoint}
-                            style={{
-                              left: `${x}%`,
-                              bottom: `${y}%`,
-                            }}
-                          >
-                            <div className={styles.scatterTooltip}>
-                              <strong>
-                                {getKoreanChampionName(champion.championName, nameMap)}
-                              </strong>
-                              <br />
-                              {champion.position} · 승률 {formatPercent(champion.winRate)}
-                              <br />
-                              픽률 {formatPercent(champion.pickRate)} · {champion.games}게임
+                          <div key={item.position} className={styles.positionBarRow}>
+                            <div className={styles.positionName}>
+                              {POSITION_LABELS[item.position] ?? item.position}
+                            </div>
+                            <div className={styles.barTrack}>
+                              <div
+                                className={styles.barFill}
+                                style={{
+                                  width: `${Math.max(4, Math.min(100, visualWidth))}%`,
+                                }}
+                              />
+                            </div>
+                            <div className={styles.positionMeta}>
+                              {formatNumber(item.pickCount)}개 · {formatPercent(item.percentage)}
                             </div>
                           </div>
                         );
                       })}
                     </div>
+                  </Panel>
+
+                  <Panel
+                    title="승률 × 픽률 메타 맵"
+                    sub="점 크기 = 게임 수 / 오른쪽 위 = 핵심 메타"
+                  >
+                    <MetaScatterMap
+                      champions={scatterStats.points}
+                      nameMap={nameMap}
+                      maxPickRate={scatterStats.maxPickRate}
+                      minWinRate={scatterStats.minWinRate}
+                      maxWinRate={scatterStats.maxWinRate}
+                      avgPickRate={scatterStats.avgPickRate}
+                      avgWinRate={scatterStats.avgWinRate}
+                      maxGames={scatterStats.maxGames}
+                    />
                   </Panel>
                 </div>
 
@@ -311,7 +342,7 @@ function Panel({
 }: {
   title: string;
   sub?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section className={styles.panel}>
@@ -347,6 +378,113 @@ function ChampionMini({
         </div>
       </div>
       <span className={styles.tierBadge}>{champion.tier}</span>
+    </div>
+  );
+}
+
+
+function MetaScatterMap({
+  champions,
+  nameMap,
+  maxPickRate,
+  minWinRate,
+  maxWinRate,
+  avgPickRate,
+  avgWinRate,
+  maxGames,
+}: {
+  champions: AnalyticsChampion[];
+  nameMap: ChampionNameMap;
+  maxPickRate: number;
+  minWinRate: number;
+  maxWinRate: number;
+  avgPickRate: number;
+  avgWinRate: number;
+  maxGames: number;
+}) {
+  const yRange = maxWinRate - minWinRate || 1;
+  const avgX = Math.min(94, Math.max(6, (avgPickRate / maxPickRate) * 88 + 6));
+  const avgY = Math.min(
+    90,
+    Math.max(10, ((avgWinRate - minWinRate) / yRange) * 76 + 12)
+  );
+
+  if (champions.length === 0) {
+    return <div className={styles.scatterEmpty}>산점도에 표시할 챔피언 데이터가 없습니다.</div>;
+  }
+
+  return (
+    <div className={styles.scatterShell}>
+      <div className={styles.scatterLegend}>
+        <span>가로축: 픽률</span>
+        <span>세로축: 승률</span>
+        <span>점 크기: 게임 수</span>
+      </div>
+
+      <div className={styles.scatterWrap}>
+        <div className={styles.scatterQuadrantTopLeft}>숨은 고승률 픽</div>
+        <div className={styles.scatterQuadrantTopRight}>핵심 메타 픽</div>
+        <div className={styles.scatterQuadrantBottomRight}>인기 대비 위험 픽</div>
+
+        <div className={styles.scatterAvgVertical} style={{ left: `${avgX}%` }} />
+        <div className={styles.scatterAvgHorizontal} style={{ bottom: `${avgY}%` }} />
+
+        <div className={styles.scatterYAxisLabel}>승률</div>
+        <div className={styles.scatterXAxisLabel}>픽률</div>
+
+        {champions.map((champion) => {
+          const x = Math.min(94, Math.max(6, (champion.pickRate / maxPickRate) * 88 + 6));
+          const y = Math.min(
+            90,
+            Math.max(10, ((champion.winRate - minWinRate) / yRange) * 76 + 12)
+          );
+          const size = Math.round(7 + Math.sqrt(champion.games / Math.max(1, maxGames)) * 11);
+          const tooltipClassName = [
+            styles.scatterTooltip,
+            x > 68 ? styles.scatterTooltipLeft : "",
+            y > 68 ? styles.scatterTooltipDown : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+          return (
+            <div
+              key={`${champion.position}-${champion.championId}-${champion.championName}`}
+              className={styles.scatterPoint}
+              style={{
+                left: `${x}%`,
+                bottom: `${y}%`,
+                width: size,
+                height: size,
+              }}
+            >
+              <div className={tooltipClassName}>
+                <div className={styles.tooltipName}>
+                  {getKoreanChampionName(champion.championName, nameMap)}
+                </div>
+                <div className={styles.tooltipSub}>
+                  {POSITION_LABELS[champion.position] ?? champion.position} · {champion.tier} 티어
+                </div>
+                <div className={styles.tooltipGrid}>
+                  <span>승률</span>
+                  <b>{formatPercent2(champion.winRate)}</b>
+                  <span>픽률</span>
+                  <b>{formatPercent2(champion.pickRate)}</b>
+                  <span>게임 수</span>
+                  <b>{formatNumber(champion.games)}</b>
+                  <span>티어 점수</span>
+                  <b>{champion.tierScore.toFixed(2)}</b>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className={styles.scatterAxisFooter}>
+        <span>낮은 픽률</span>
+        <span>높은 픽률</span>
+      </div>
     </div>
   );
 }

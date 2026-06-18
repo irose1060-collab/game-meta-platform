@@ -7,10 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -30,13 +27,13 @@ public class AnalyticsOverviewService {
 
         return AnalyticsOverviewResponse.builder()
                 .summary(summary)
-                .positionDistribution(getPositionDistribution(targetPatch))
+                .positionDistribution(getPositionDistribution(targetPatch, safeMinGames))
                 .positionTopChampions(getPositionTopChampions(targetPatch, safeMinGames))
                 .topWinRateChampions(getTopChampions(targetPatch, safeMinGames, "win_rate DESC, games DESC", 10))
                 .topPickRateChampions(getTopChampions(targetPatch, safeMinGames, "pick_rate DESC, games DESC", 10))
                 .topDamageChampions(getTopChampions(targetPatch, safeMinGames, "avg_damage DESC, games DESC", 10))
                 .topKdaChampions(getTopChampions(targetPatch, safeMinGames, "avg_kda DESC, games DESC", 10))
-                .scatterChampions(getTopChampions(targetPatch, safeMinGames, "games DESC, tier_score DESC", 140))
+                .scatterChampions(getTopChampions(targetPatch, safeMinGames, "games DESC, tier_score DESC", 160))
                 .build();
     }
 
@@ -49,7 +46,8 @@ public class AnalyticsOverviewService {
                 SELECT
                     patch,
                     COALESCE(SUM(games), 0) AS total_games,
-                    COALESCE(MAX(games), 0) AS max_games
+                    COALESCE(MAX(games), 0) AS max_games,
+                    COUNT(*) AS row_count
                 FROM champion_stats
                 WHERE patch IS NOT NULL
                   AND patch <> ''
@@ -133,13 +131,22 @@ public class AnalyticsOverviewService {
         }
     }
 
-    private List<PositionDistributionResponse> getPositionDistribution(String patch) {
+    /*
+     * 기존 방식은 match_participants에서 포지션별 참가자 수를 세고 있었음.
+     * 솔랭 한 판에는 TOP/JUNGLE/MIDDLE/BOTTOM/UTILITY가 각각 2명씩 존재하므로
+     * 참가자 수를 세면 구조상 거의 항상 20%가 나옴.
+     *
+     * 수정 방식은 champion_stats 기준으로 최소 표본 조건을 통과한 챔피언 수를 포지션별로 계산함.
+     * 이제 이 값은 포지션별 메타 다양성을 의미함.
+     */
+    private List<PositionDistributionResponse> getPositionDistribution(String patch, int minGames) {
         String sql = """
                 SELECT
                     position,
-                    COALESCE(SUM(games), 0) AS pick_count
+                    COUNT(*) AS champion_count
                 FROM champion_stats
                 WHERE patch = ?
+                  AND games >= ?
                   AND position IN ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')
                 GROUP BY position
                 """;
@@ -150,8 +157,8 @@ public class AnalyticsOverviewService {
         }
 
         jdbcTemplate.query(sql, rs -> {
-            countMap.put(rs.getString("position"), rs.getLong("pick_count"));
-        }, patch);
+            countMap.put(rs.getString("position"), rs.getLong("champion_count"));
+        }, patch, minGames);
 
         long total = countMap.values().stream().mapToLong(Long::longValue).sum();
 
@@ -208,7 +215,7 @@ public class AnalyticsOverviewService {
                 (rs, rowNum) -> mapChampion(rs),
                 patch,
                 minGames,
-                limit
+                Math.max(1, limit)
         );
     }
 
@@ -251,16 +258,10 @@ public class AnalyticsOverviewService {
             grouped.put(position, new ArrayList<>());
         }
 
-        List<AnalyticsChampionResponse> champions = jdbcTemplate.query(
-                sql,
-                (rs, rowNum) -> mapChampion(rs),
-                patch,
-                minGames
-        );
-
-        for (AnalyticsChampionResponse champion : champions) {
-            grouped.computeIfAbsent(champion.getPosition(), key -> new ArrayList<>()).add(champion);
-        }
+        jdbcTemplate.query(sql, rs -> {
+            String position = rs.getString("position");
+            grouped.computeIfAbsent(position, key -> new ArrayList<>()).add(mapChampion(rs));
+        }, patch, minGames);
 
         List<PositionTopChampionsResponse> result = new ArrayList<>();
         for (String position : POSITIONS) {
