@@ -1,13 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { apiFetch } from "@/lib/api";
 import WinAnalysisCard from "@/components/WinAnalysisCard";
 import type {
+  AssetDto,
   MatchParticipantResponse,
   MatchSearchResponse,
   MatchSummaryResponse,
+  MatchTeamSummaryResponse,
 } from "@/types";
+
+const TEAM_BLUE = "#38bdf8";
+const TEAM_RED = "#fb7185";
+const GOLD = "#f5c542";
+const TEXT_DIM = "#94a3b8";
+
+const POSITION_LABELS: Record<string, string> = {
+  TOP: "탑",
+  JUNGLE: "정글",
+  MID: "미드",
+  MIDDLE: "미드",
+  ADC: "원딜",
+  BOTTOM: "원딜",
+  SUPPORT: "서포터",
+  UTILITY: "서포터",
+};
 
 export default function HeroSearch() {
   const [gameName, setGameName] = useState("");
@@ -33,10 +52,10 @@ export default function HeroSearch() {
 
     try {
       const data = await apiFetch<MatchSearchResponse>(
-      `/api/matches/search?gameName=${encodeURIComponent(
-        cleanName
-      )}&tagLine=${encodeURIComponent(cleanTag)}&count=20`
-    );
+        `/api/matches/search?gameName=${encodeURIComponent(
+          cleanName
+        )}&tagLine=${encodeURIComponent(cleanTag)}&count=20`
+      );
 
       if (!data.puuid) {
         setError("Riot 계정 정보를 찾을 수 없습니다.");
@@ -62,7 +81,7 @@ export default function HeroSearch() {
     }
   };
 
-  const handleSearch = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await searchByRiotId(gameName, tagLine);
   };
@@ -129,16 +148,12 @@ export default function HeroSearch() {
         )}
 
         {!loading && result && (
-          <div className="search-result-box" id="search-result-section">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 16,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
+          <div
+            className="search-result-box"
+            id="search-result-section"
+            style={{ maxWidth: 1180 }}
+          >
+            <div style={resultHeaderStyle}>
               <div>
                 <h3>
                   {result.gameName} #{result.tagLine}
@@ -148,6 +163,9 @@ export default function HeroSearch() {
                   {result.losses}패 · 승률{" "}
                   <strong>{result.winRate.toFixed(1)}%</strong> · 평균 KDA{" "}
                   <strong>{result.averageKda.toFixed(2)}</strong>
+                </p>
+                <p style={{ color: TEXT_DIM }}>
+                  상세 전적은 아이템, 룬, 스펠, 시야, 오브젝트, 팀별 딜량을 함께 표시합니다.
                 </p>
               </div>
 
@@ -159,15 +177,14 @@ export default function HeroSearch() {
                 losses={result.losses}
                 matches={result.matches ?? []}
               />
-
-              <p className="success-message">
-                참가자 닉네임을 클릭하면 해당 유저의 최근 10경기를 다시
-                조회합니다.
-              </p>
             </div>
 
-            <div style={{ marginTop: 22, display: "grid", gap: 14 }}>
-              {result.matches.map((match) => (
+            <p className="success-message">
+              참가자 닉네임을 클릭하면 해당 유저의 최근 솔로랭크 20경기를 다시 조회합니다.
+            </p>
+
+            <div style={{ marginTop: 22, display: "grid", gap: 16 }}>
+              {(result.matches ?? []).map((match) => (
                 <MatchCard
                   key={match.matchId}
                   match={match}
@@ -192,85 +209,91 @@ function MatchCard({
   onParticipantClick: (gameName: string, tagLine: string) => void;
   currentPuuid: string;
 }) {
-  return (
-    <article
-      style={{
-        border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: 18,
-        background: "rgba(255,255,255,0.035)",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.3fr 1fr",
-          gap: 16,
-          padding: 16,
-          borderLeft: `5px solid ${match.win ? "#34d399" : "#f87171"}`,
-        }}
-      >
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <img
-            src={match.championImageUrl}
-            alt={match.championName}
-            style={{
-              width: 62,
-              height: 62,
-              borderRadius: 16,
-              objectFit: "cover",
-              background: "#111827",
-            }}
-          />
+  const teamColor = match.win ? "#34d399" : "#f87171";
+  const resultBg = match.win
+    ? "rgba(52, 211, 153, 0.12)"
+    : "rgba(248, 113, 113, 0.12)";
 
-          <div>
-            <div
-              style={{
-                fontWeight: 900,
-                color: match.win ? "#86efac" : "#fca5a5",
-              }}
-            >
+  return (
+    <article style={matchCardStyle}>
+      <div style={{ ...matchTopStyle, borderLeft: `5px solid ${teamColor}` }}>
+        <div style={mainChampionBlockStyle}>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <img
+              src={match.championImageUrl}
+              alt={match.championName}
+              style={championPortraitStyle}
+            />
+            {match.opScoreBadge && match.opScoreBadge !== "-" && (
+              <span style={opBadgeStyle}>{match.opScoreBadge}</span>
+            )}
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <div style={{ ...resultTextStyle, color: teamColor }}>
               {match.resultText} · {match.queueType} · {match.playedAtText}
             </div>
-            <div style={{ marginTop: 4, fontWeight: 900, color: "#fff" }}>
-              {match.championName} · {match.position}
+
+            <div style={championTitleStyle}>
+              {match.championName} · {positionLabel(match.position)}
             </div>
-            <div style={{ marginTop: 4, color: "#cbd5e1", fontSize: 14 }}>
+
+            <div style={kdaTextStyle}>
               {match.kills} / {match.deaths} / {match.assists} · KDA{" "}
-              {match.kda.toFixed(2)} · CS {match.totalCs}
+              {match.kda.toFixed(2)} · CS {match.totalCs} ({match.csPerMinute.toFixed(1)}/분)
+            </div>
+
+            <div style={assetLineStyle}>
+              <AssetIconList assets={match.summonerSpells ?? []} size={27} max={2} />
+              <AssetIconList assets={match.runes ?? []} size={27} max={6} />
             </div>
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: 14,
-            color: "#cbd5e1",
-            fontSize: 13,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>딜량 {formatNumber(match.totalDamageDealtToChampions)}</div>
-          <div>골드 {formatNumber(match.goldEarned)}</div>
-          <div>게임 시간 {match.gameDurationText}</div>
+        <div style={mainStatsPanelStyle}>
+          <div style={{ ...resultPillStyle, background: resultBg, color: teamColor }}>
+            {match.resultText}
+          </div>
+          <StatChip label="킬관여" value={`${match.killParticipation ?? 0}%`} />
+          <StatChip label="딜량" value={formatNumber(match.totalDamageDealtToChampions)} />
+          <StatChip label="받은 피해" value={formatNumber(match.totalDamageTaken)} />
+          <StatChip label="골드" value={formatNumber(match.goldEarned)} />
+          <StatChip label="시야" value={String(match.visionScore ?? 0)} />
+          <StatChip label="제어 와드" value={String(match.controlWardsPlaced ?? 0)} />
+          <StatChip label="OP 점수" value={`${(match.opScore ?? 0).toFixed(1)}점`} />
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          padding: 16,
-          borderTop: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
+      <div style={itemBuildStyle}>
+        <div style={sectionLabelStyle}>최종 아이템</div>
+        <AssetIconList assets={match.items ?? []} size={34} max={7} showEmpty />
+        <div style={{ marginLeft: "auto", color: TEXT_DIM, fontSize: 12 }}>
+          게임 시간 {match.gameDurationText}
+        </div>
+      </div>
+
+      <div style={objectivesStyle}>
+        <TeamObjectiveSummary
+          label="블루팀"
+          color={TEAM_BLUE}
+          summary={match.blueTeamSummary}
+          totalKills={match.blueTeamTotalKills}
+          totalGold={match.blueTeamTotalGold}
+        />
+        <TeamObjectiveSummary
+          label="레드팀"
+          color={TEAM_RED}
+          summary={match.redTeamSummary}
+          totalKills={match.redTeamTotalKills}
+          totalGold={match.redTeamTotalGold}
+        />
+      </div>
+
+      <div style={teamsGridStyle}>
         <TeamList
           title={`블루팀 · ${match.blueTeamTotalKills}킬`}
-          participants={match.blueTeam}
+          color={TEAM_BLUE}
+          participants={match.blueTeam ?? []}
           maxDamage={match.maxDamage}
           currentPuuid={currentPuuid}
           onParticipantClick={onParticipantClick}
@@ -278,7 +301,8 @@ function MatchCard({
 
         <TeamList
           title={`레드팀 · ${match.redTeamTotalKills}킬`}
-          participants={match.redTeam}
+          color={TEAM_RED}
+          participants={match.redTeam ?? []}
           maxDamage={match.maxDamage}
           currentPuuid={currentPuuid}
           onParticipantClick={onParticipantClick}
@@ -288,14 +312,61 @@ function MatchCard({
   );
 }
 
+function TeamObjectiveSummary({
+  label,
+  color,
+  summary,
+  totalKills,
+  totalGold,
+}: {
+  label: string;
+  color: string;
+  summary?: MatchTeamSummaryResponse;
+  totalKills: number;
+  totalGold: number;
+}) {
+  const bans = summary?.bans ?? [];
+
+  return (
+    <div style={{ ...teamObjectiveCardStyle, borderColor: `${color}55` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+        <strong style={{ color }}>{label}</strong>
+        <span style={{ color: summary?.win ? "#86efac" : "#fca5a5", fontWeight: 900 }}>
+          {summary?.win ? "승리" : "패배"}
+        </span>
+      </div>
+
+      <div style={objectiveStatGridStyle}>
+        <SmallMetric label="킬" value={formatNumber(summary?.totalKills ?? totalKills)} />
+        <SmallMetric label="골드" value={formatNumber(summary?.totalGold ?? totalGold)} />
+        <SmallMetric label="드래곤" value={String(summary?.dragonKills ?? 0)} />
+        <SmallMetric label="바론" value={String(summary?.baronKills ?? 0)} />
+        <SmallMetric label="타워" value={String(summary?.towerKills ?? 0)} />
+        <SmallMetric label="유충" value={String(summary?.hordeKills ?? 0)} />
+      </div>
+
+      <div style={banLineStyle}>
+        <span style={{ color: TEXT_DIM, fontSize: 12, fontWeight: 800 }}>밴</span>
+        {bans.length > 0 ? (
+          <AssetIconList assets={bans} size={24} max={5} />
+        ) : (
+          <span style={{ color: "#64748b", fontSize: 12 }}>밴 데이터 없음</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TeamList({
   title,
+  color,
   participants,
   maxDamage,
   currentPuuid,
   onParticipantClick,
 }: {
   title: string;
+  color: string;
   participants: MatchParticipantResponse[];
   maxDamage: number;
   currentPuuid: string;
@@ -303,11 +374,9 @@ function TeamList({
 }) {
   return (
     <div>
-      <div style={{ marginBottom: 10, fontWeight: 900, color: "#f5c542" }}>
-        {title}
-      </div>
+      <div style={{ marginBottom: 10, fontWeight: 900, color }}>{title}</div>
 
-      <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "grid", gap: 9 }}>
         {participants.map((participant) => {
           const damageWidth =
             maxDamage > 0
@@ -320,9 +389,7 @@ function TeamList({
               : 0;
 
           const riotGameName =
-            participant.riotGameName ||
-            participant.summonerName ||
-            "Unknown";
+            participant.riotGameName || participant.summonerName || "Unknown";
 
           const riotTagLine = participant.riotTagLine || "";
 
@@ -339,28 +406,19 @@ function TeamList({
             <div
               key={`${participant.puuid}-${participant.championName}-${participant.teamPosition}`}
               style={{
-                display: "grid",
-                gridTemplateColumns: "34px 1fr 70px 90px",
-                alignItems: "center",
-                gap: 8,
-                color: "#e5e7eb",
-                fontSize: 13,
-                borderRadius: 10,
-                padding: "4px 6px",
+                ...participantRowStyle,
                 background: isCurrentUser
-                  ? "rgba(245,197,66,0.08)"
-                  : "transparent",
+                  ? "rgba(245,197,66,0.11)"
+                  : "rgba(255,255,255,0.025)",
+                borderColor: isCurrentUser
+                  ? "rgba(245,197,66,0.32)"
+                  : "rgba(255,255,255,0.07)",
               }}
             >
               <img
                 src={participant.championImageUrl}
                 alt={participant.championName}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  objectFit: "cover",
-                }}
+                style={participantChampionStyle}
               />
 
               <div style={{ minWidth: 0 }}>
@@ -374,18 +432,9 @@ function TeamList({
                       : "검색 가능한 Riot ID 정보가 없습니다."
                   }
                   style={{
-                    display: "block",
-                    width: "100%",
-                    border: "none",
-                    background: "transparent",
-                    padding: 0,
+                    ...participantNameButtonStyle,
                     color: canSearch ? "#f8d978" : "#e5e7eb",
-                    fontWeight: 900,
-                    textAlign: "left",
                     cursor: canSearch ? "pointer" : "default",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
                   }}
                 >
                   {riotGameName}
@@ -393,43 +442,48 @@ function TeamList({
                   {isCurrentUser ? " · 현재 검색 유저" : ""}
                 </button>
 
-                <div style={{ color: "#94a3b8", fontSize: 12 }}>
-                  {participant.teamPosition} · {participant.championName}
+                <div style={{ color: TEXT_DIM, fontSize: 12 }}>
+                  {positionLabel(participant.teamPosition)} · {participant.championName} · Lv.{participant.championLevel ?? "-"}
+                </div>
+
+                <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <AssetIconList assets={participant.summonerSpells ?? []} size={22} max={2} />
+                  <AssetIconList assets={participant.items ?? []} size={22} max={7} showEmpty />
                 </div>
               </div>
 
-              <div style={{ textAlign: "right", fontWeight: 800 }}>
-                {participant.kills}/{participant.deaths}/{participant.assists}
+              <div style={participantKdaStyle}>
+                <b>
+                  {participant.kills}/{participant.deaths}/{participant.assists}
+                </b>
+                <span>KDA {participant.kda.toFixed(2)}</span>
+                <span>킬관여 {participant.killParticipation ?? 0}%</span>
+              </div>
+
+              <div style={participantDetailStyle}>
+                <span>CS {participant.totalCs} ({participant.csPerMinute.toFixed(1)})</span>
+                <span>시야 {participant.visionScore}</span>
+                <span>OP {participant.opScore?.toFixed(1)} · {participant.opScoreBadge}</span>
               </div>
 
               <div>
-                <div
-                  style={{
-                    color: "#94a3b8",
-                    fontSize: 11,
-                    textAlign: "right",
-                  }}
-                >
+                <div style={damageLabelStyle}>
                   {formatNumber(participant.totalDamageDealtToChampions)}
                 </div>
 
-                <div
-                  style={{
-                    height: 5,
-                    borderRadius: 999,
-                    background: "rgba(255,255,255,0.08)",
-                    overflow: "hidden",
-                    marginTop: 4,
-                  }}
-                >
+                <div style={damageTrackStyle}>
                   <div
                     style={{
                       width: `${damageWidth}%`,
                       height: "100%",
                       borderRadius: 999,
-                      background: "#f5c542",
+                      background: color,
                     }}
                   />
+                </div>
+
+                <div style={{ marginTop: 4, color: TEXT_DIM, fontSize: 11, textAlign: "right" }}>
+                  딜비중 {participant.damageShare?.toFixed(1) ?? "0.0"}%
                 </div>
               </div>
             </div>
@@ -440,6 +494,307 @@ function TeamList({
   );
 }
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("ko-KR").format(Math.round(value));
+function AssetIconList({
+  assets,
+  size,
+  max,
+  showEmpty = false,
+}: {
+  assets: AssetDto[];
+  size: number;
+  max: number;
+  showEmpty?: boolean;
+}) {
+  const normalized = (assets ?? []).slice(0, max);
+  const emptyCount = showEmpty ? Math.max(0, max - normalized.length) : 0;
+
+  return (
+    <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+      {normalized.map((asset, index) => (
+        <AssetIcon key={`${asset.id}-${index}`} asset={asset} size={size} />
+      ))}
+      {Array.from({ length: emptyCount }).map((_, index) => (
+        <AssetIcon key={`empty-${index}`} asset={null} size={size} />
+      ))}
+    </div>
+  );
 }
+
+function AssetIcon({ asset, size }: { asset: AssetDto | null; size: number }) {
+  if (!asset) {
+    return <span style={{ ...assetEmptyStyle, width: size, height: size }} />;
+  }
+
+  return (
+    <img
+      src={asset.imageUrl}
+      alt={asset.name || asset.id}
+      title={asset.name || asset.id}
+      style={{ ...assetIconStyle, width: size, height: size }}
+    />
+  );
+}
+
+function StatChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={statChipStyle}>
+      <span>{label}</span>
+      <b>{value}</b>
+    </div>
+  );
+}
+
+function SmallMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={smallMetricStyle}>
+      <span>{label}</span>
+      <b>{value}</b>
+    </div>
+  );
+}
+
+function positionLabel(position: string) {
+  return POSITION_LABELS[position] ?? position ?? "-";
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("ko-KR").format(Math.round(value || 0));
+}
+
+const resultHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 16,
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+
+const matchCardStyle: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.035)",
+  overflow: "hidden",
+  textAlign: "left",
+};
+
+const matchTopStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(320px, 1.35fr) minmax(260px, 1fr)",
+  gap: 16,
+  padding: 16,
+};
+
+const mainChampionBlockStyle: CSSProperties = {
+  display: "flex",
+  gap: 14,
+  alignItems: "center",
+  minWidth: 0,
+};
+
+const championPortraitStyle: CSSProperties = {
+  width: 76,
+  height: 76,
+  borderRadius: 18,
+  objectFit: "cover",
+  background: "#111827",
+  border: "1px solid rgba(255,255,255,0.1)",
+};
+
+const opBadgeStyle: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  bottom: -8,
+  transform: "translateX(-50%)",
+  padding: "2px 7px",
+  borderRadius: 999,
+  background: "linear-gradient(180deg,#f8d978,#c89b3c)",
+  color: "#1f1305",
+  fontSize: 10,
+  fontWeight: 950,
+  boxShadow: "0 4px 10px rgba(0,0,0,0.35)",
+};
+
+const resultTextStyle: CSSProperties = {
+  fontWeight: 950,
+  fontSize: 13,
+};
+
+const championTitleStyle: CSSProperties = {
+  marginTop: 4,
+  fontWeight: 950,
+  color: "#fff",
+  fontSize: 17,
+};
+
+const kdaTextStyle: CSSProperties = {
+  marginTop: 4,
+  color: "#cbd5e1",
+  fontSize: 14,
+};
+
+const assetLineStyle: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  alignItems: "center",
+  flexWrap: "wrap",
+  marginTop: 10,
+};
+
+const mainStatsPanelStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(80px, 1fr))",
+  gap: 8,
+  alignContent: "center",
+};
+
+const resultPillStyle: CSSProperties = {
+  borderRadius: 12,
+  padding: "8px 10px",
+  fontWeight: 950,
+  textAlign: "center",
+  border: "1px solid rgba(255,255,255,0.08)",
+};
+
+const statChipStyle: CSSProperties = {
+  borderRadius: 12,
+  padding: "8px 10px",
+  background: "rgba(255,255,255,0.045)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  display: "grid",
+  gap: 2,
+};
+
+const itemBuildStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "0 16px 16px",
+  flexWrap: "wrap",
+};
+
+const sectionLabelStyle: CSSProperties = {
+  color: GOLD,
+  fontWeight: 950,
+  fontSize: 12,
+  letterSpacing: 1,
+};
+
+const objectivesStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 12,
+  padding: 16,
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+};
+
+const teamObjectiveCardStyle: CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 14,
+  padding: 12,
+  background: "rgba(0,0,0,0.16)",
+};
+
+const objectiveStatGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, 1fr)",
+  gap: 8,
+  marginTop: 10,
+};
+
+const smallMetricStyle: CSSProperties = {
+  display: "grid",
+  gap: 2,
+  padding: 8,
+  borderRadius: 10,
+  background: "rgba(255,255,255,0.035)",
+};
+
+const banLineStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  marginTop: 10,
+  flexWrap: "wrap",
+};
+
+const teamsGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 12,
+  padding: 16,
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+};
+
+const participantRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "38px minmax(130px, 1fr) 84px 92px 105px",
+  alignItems: "center",
+  gap: 8,
+  color: "#e5e7eb",
+  fontSize: 13,
+  borderRadius: 12,
+  padding: "7px 8px",
+  border: "1px solid rgba(255,255,255,0.07)",
+};
+
+const participantChampionStyle: CSSProperties = {
+  width: 38,
+  height: 38,
+  borderRadius: 10,
+  objectFit: "cover",
+};
+
+const participantNameButtonStyle: CSSProperties = {
+  display: "block",
+  width: "100%",
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  fontWeight: 950,
+  textAlign: "left",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const participantKdaStyle: CSSProperties = {
+  display: "grid",
+  gap: 1,
+  textAlign: "right",
+};
+
+const participantDetailStyle: CSSProperties = {
+  display: "grid",
+  gap: 1,
+  color: TEXT_DIM,
+  fontSize: 11,
+  textAlign: "right",
+};
+
+const damageLabelStyle: CSSProperties = {
+  color: TEXT_DIM,
+  fontSize: 11,
+  textAlign: "right",
+};
+
+const damageTrackStyle: CSSProperties = {
+  height: 5,
+  borderRadius: 999,
+  background: "rgba(255,255,255,0.08)",
+  overflow: "hidden",
+  marginTop: 4,
+};
+
+const assetIconStyle: CSSProperties = {
+  borderRadius: 7,
+  objectFit: "cover",
+  background: "#111827",
+  border: "1px solid rgba(255,255,255,0.1)",
+};
+
+const assetEmptyStyle: CSSProperties = {
+  display: "inline-block",
+  borderRadius: 7,
+  background: "rgba(255,255,255,0.045)",
+  border: "1px solid rgba(255,255,255,0.07)",
+};
