@@ -33,10 +33,10 @@ export default function HeroSearch() {
 
     try {
       const data = await apiFetch<MatchSearchResponse>(
-        `/api/matches/search?gameName=${encodeURIComponent(
-          cleanName
-        )}&tagLine=${encodeURIComponent(cleanTag)}&count=10`
-      );
+      `/api/matches/search?gameName=${encodeURIComponent(
+        cleanName
+      )}&tagLine=${encodeURIComponent(cleanTag)}&count=20`
+    );
 
       if (!data.puuid) {
         setError("Riot 계정 정보를 찾을 수 없습니다.");
@@ -124,7 +124,7 @@ export default function HeroSearch() {
         {loading && activeSearchText && (
           <div className="search-result-box" id="search-result-section">
             <h3>{activeSearchText}</h3>
-            <p>최근 10경기와 참가자 정보를 불러오는 중입니다...</p>
+            <p>최근 솔로랭크 20경기와 참가자 정보를 불러오는 중입니다...</p>
           </div>
         )}
 
@@ -144,7 +144,7 @@ export default function HeroSearch() {
                   {result.gameName} #{result.tagLine}
                 </h3>
                 <p>
-                  최근 {result.totalMatches}경기 · {result.wins}승{" "}
+                  최근 솔로랭크 {result.totalMatches}경기 · {result.wins}승{" "}
                   {result.losses}패 · 승률{" "}
                   <strong>{result.winRate.toFixed(1)}%</strong> · 평균 KDA{" "}
                   <strong>{result.averageKda.toFixed(2)}</strong>
