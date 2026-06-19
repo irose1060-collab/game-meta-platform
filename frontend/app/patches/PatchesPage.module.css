@@ -195,3 +195,53 @@
     text-align: center;
   }
 }
+
+/* ===== META GG PATCHES MOBILE FINAL PATCH ===== */
+@media (max-width: 760px) {
+  .container {
+    width: 100%;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .heroInner {
+    padding: 34px 0 24px;
+  }
+
+  .title {
+    font-size: clamp(34px, 12vw, 48px);
+    letter-spacing: -0.03em;
+  }
+
+  .description {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .latestCard,
+  .patchCard,
+  .stateBox {
+    border-radius: 18px;
+    padding: 18px;
+  }
+
+  .latestTitle {
+    font-size: 22px;
+  }
+
+  .patchCard {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .versionBox {
+    width: 100%;
+  }
+
+  .linkButton,
+  .officialButton {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}

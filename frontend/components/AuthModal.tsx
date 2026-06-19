@@ -112,11 +112,7 @@ export default function AuthModal({
 
   const handleGoogleLogin = () => {
     document.body.style.overflow = "";
-    window.location.href = "http://localhost:8080/oauth2/authorization/google";
-  };
-
-  const handleSocialComingSoon = (provider: string) => {
-    alert(`${provider} 로그인은 Google 로그인 구현 후 같은 OAuth2 구조로 확장 예정입니다.`);
+    window.location.href = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080"}/oauth2/authorization/google`;
   };
 
   const handleEmailChange = (value: string) => {
@@ -313,12 +309,6 @@ export default function AuthModal({
         <div className="social-login-box">
           <button type="button" className="social-button google" onClick={handleGoogleLogin}>
             Google로 계속하기
-          </button>
-          <button type="button" className="social-button kakao" onClick={() => handleSocialComingSoon("Kakao")}>
-            Kakao
-          </button>
-          <button type="button" className="social-button naver" onClick={() => handleSocialComingSoon("Naver")}>
-            Naver
           </button>
         </div>
 

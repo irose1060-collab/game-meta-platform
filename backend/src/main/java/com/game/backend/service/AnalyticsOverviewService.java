@@ -54,15 +54,9 @@ public class AnalyticsOverviewService {
                   AND patch ~ '^[0-9]+[.][0-9]+$'
                 GROUP BY patch
                 ORDER BY
-                    CASE
-                        WHEN COALESCE(SUM(games), 0) >= 100
-                         AND COALESCE(MAX(games), 0) >= 3
-                        THEN 0
-                        ELSE 1
-                    END ASC,
-                    COALESCE(SUM(games), 0) DESC,
                     SPLIT_PART(patch, '.', 1)::int DESC,
-                    SPLIT_PART(patch, '.', 2)::int DESC
+                    SPLIT_PART(patch, '.', 2)::int DESC,
+                    COALESCE(SUM(games), 0) DESC
                 LIMIT 1
                 """;
 
@@ -81,7 +75,9 @@ public class AnalyticsOverviewService {
                 WHERE patch IS NOT NULL
                   AND patch <> ''
                 GROUP BY patch
-                ORDER BY COALESCE(SUM(games), 0) DESC, patch DESC
+                ORDER BY split_part(patch, '.', 1)::int DESC,
+                         split_part(patch, '.', 2)::int DESC,
+                         COALESCE(SUM(games), 0) DESC
                 LIMIT 1
                 """;
 

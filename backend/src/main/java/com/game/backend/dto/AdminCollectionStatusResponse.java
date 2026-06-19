@@ -20,6 +20,13 @@ public class AdminCollectionStatusResponse {
     private long totalSavedMatchesBySeeds;
     private long failedSeedCount;
 
+    private String latestPatch;
+    private long latestPatchMatchCount;
+    private long latestPatchStatRows;
+    private long latestPatchTotalGames;
+    private int targetPatchGames;
+    private double latestPatchProgressPercent;
+
     private LocalDateTime lastCollectedAt;
     private LocalDateTime lastMatchCreatedAt;
     private LocalDateTime lastStatsUpdatedAt;

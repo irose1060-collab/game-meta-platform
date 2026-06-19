@@ -160,7 +160,9 @@ public class HomeMetaService {
                 WHERE patch IS NOT NULL
                   AND patch <> ''
                 GROUP BY patch
-                ORDER BY COALESCE(SUM(games), 0) DESC, patch DESC
+                ORDER BY split_part(patch, '.', 1)::int DESC,
+                         split_part(patch, '.', 2)::int DESC,
+                         COALESCE(SUM(games), 0) DESC
                 LIMIT 1
                 """;
 

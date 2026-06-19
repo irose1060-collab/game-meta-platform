@@ -47,7 +47,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         String userJson = objectMapper.writeValueAsString(authResponse);
 
-        String redirectUrl = "http://localhost:3000/oauth/success"
+        String redirectUrl = "https://metagg.cloud/oauth/success"
                 + "?token=" + URLEncoder.encode(authResponse.getToken(), StandardCharsets.UTF_8)
                 + "&user=" + URLEncoder.encode(userJson, StandardCharsets.UTF_8);
 

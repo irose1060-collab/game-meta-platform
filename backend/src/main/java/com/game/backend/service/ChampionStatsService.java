@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,11 +14,44 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChampionStatsService {
 
+    private static final int DEFAULT_QUEUE_ID = 420;
+
     private final JdbcTemplate jdbcTemplate;
 
+    /**
+     * 기본 재집계는 최신 솔로랭크 패치만 대상으로 한다.
+     * 예전처럼 champion_stats 전체를 삭제하면 패치 비교 데이터가 사라지므로 금지한다.
+     */
     @Transactional
     public StatsRebuildResponse rebuildChampionStats() {
-        jdbcTemplate.update("DELETE FROM champion_stats");
+        String latestPatch = resolveLatestMatchPatch(DEFAULT_QUEUE_ID);
+        if (latestPatch == null || latestPatch.isBlank()) {
+            return StatsRebuildResponse.builder()
+                    .rebuiltCount(0)
+                    .message("재집계할 솔로랭크 매치 데이터가 없습니다.")
+                    .build();
+        }
+
+        return rebuildChampionStats(latestPatch, DEFAULT_QUEUE_ID);
+    }
+
+    @Transactional
+    public StatsRebuildResponse rebuildChampionStats(String patch, int queueId) {
+        String cleanPatch = normalizePatch(patch);
+        int safeQueueId = queueId <= 0 ? DEFAULT_QUEUE_ID : queueId;
+
+        if (cleanPatch.isBlank()) {
+            return StatsRebuildResponse.builder()
+                    .rebuiltCount(0)
+                    .message("재집계할 패치 값이 비어 있습니다.")
+                    .build();
+        }
+
+        jdbcTemplate.update(
+                "DELETE FROM champion_stats WHERE patch = ? AND queue_id = ?",
+                cleanPatch,
+                safeQueueId
+        );
 
         String insertSql = """
                 INSERT INTO champion_stats (
@@ -67,7 +101,18 @@ public class ChampionStatsService {
                         COALESCE(mp.vision_score, 0) AS vision_score
                     FROM match_participants mp
                     JOIN matches m ON m.match_id = mp.match_id
-                    WHERE m.queue_id = 420
+                    WHERE m.queue_id = ?
+                      AND COALESCE(
+                            NULLIF(
+                                CONCAT(
+                                    SPLIT_PART(COALESCE(m.game_version, 'unknown'), '.', 1),
+                                    '.',
+                                    SPLIT_PART(COALESCE(m.game_version, 'unknown'), '.', 2)
+                                ),
+                                '.'
+                            ),
+                            'unknown'
+                          ) = ?
                       AND mp.champion_id IS NOT NULL
                       AND mp.champion_name IS NOT NULL
                       AND mp.champion_name <> ''
@@ -173,12 +218,103 @@ public class ChampionStatsService {
                 ORDER BY position ASC, tier_score DESC
                 """;
 
-        int insertedCount = jdbcTemplate.update(insertSql);
+        int insertedCount = jdbcTemplate.update(insertSql, safeQueueId, cleanPatch);
 
         return StatsRebuildResponse.builder()
                 .rebuiltCount(insertedCount)
-                .message("챔피언 통계 재집계 완료: " + insertedCount + "개")
+                .message("챔피언 통계 재집계 완료: patch=" + cleanPatch + ", queue=" + safeQueueId + ", rows=" + insertedCount)
                 .build();
+    }
+
+    public String resolveLatestMatchPatch() {
+        return resolveLatestMatchPatch(DEFAULT_QUEUE_ID);
+    }
+
+    public String resolveLatestMatchPatch(int queueId) {
+        String sql = """
+                SELECT patch
+                FROM (
+                    SELECT
+                        split_part(game_version, '.', 1) || '.' || split_part(game_version, '.', 2) AS patch,
+                        COUNT(*) AS match_count
+                    FROM matches
+                    WHERE queue_id = ?
+                      AND game_version IS NOT NULL
+                      AND game_version ~ '^[0-9]+[.][0-9]+'
+                    GROUP BY patch
+                ) p
+                WHERE patch ~ '^[0-9]+[.][0-9]+$'
+                ORDER BY split_part(patch, '.', 1)::int DESC,
+                         split_part(patch, '.', 2)::int DESC,
+                         match_count DESC
+                LIMIT 1
+                """;
+
+        List<String> patches = jdbcTemplate.query(sql, (rs, rowNum) -> rs.getString("patch"), queueId);
+        if (!patches.isEmpty()) {
+            return patches.get(0);
+        }
+
+        String fallbackSql = """
+                SELECT patch
+                FROM champion_stats
+                WHERE queue_id = ?
+                  AND patch IS NOT NULL
+                  AND patch <> ''
+                  AND patch ~ '^[0-9]+[.][0-9]+$'
+                GROUP BY patch
+                ORDER BY split_part(patch, '.', 1)::int DESC,
+                         split_part(patch, '.', 2)::int DESC,
+                         COALESCE(SUM(games), 0) DESC
+                LIMIT 1
+                """;
+
+        List<String> fallback = jdbcTemplate.query(fallbackSql, (rs, rowNum) -> rs.getString("patch"), queueId);
+        return fallback.isEmpty() ? "" : fallback.get(0);
+    }
+
+    public long countMatchesForPatch(String patch, int queueId) {
+        String cleanPatch = normalizePatch(patch);
+        if (cleanPatch.isBlank()) return 0;
+
+        Long value = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM matches
+                WHERE queue_id = ?
+                  AND split_part(game_version, '.', 1) || '.' || split_part(game_version, '.', 2) = ?
+                """,
+                Long.class,
+                queueId,
+                cleanPatch
+        );
+        return value == null ? 0 : value;
+    }
+
+    public long countStatRowsForPatch(String patch, int queueId) {
+        String cleanPatch = normalizePatch(patch);
+        if (cleanPatch.isBlank()) return 0;
+
+        Long value = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM champion_stats WHERE patch = ? AND queue_id = ?",
+                Long.class,
+                cleanPatch,
+                queueId
+        );
+        return value == null ? 0 : value;
+    }
+
+    public long sumGamesForPatch(String patch, int queueId) {
+        String cleanPatch = normalizePatch(patch);
+        if (cleanPatch.isBlank()) return 0;
+
+        Long value = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(SUM(games), 0) FROM champion_stats WHERE patch = ? AND queue_id = ?",
+                Long.class,
+                cleanPatch,
+                queueId
+        );
+        return value == null ? 0 : value;
     }
 
     public List<ChampionStatResponse> getChampionStats(String position) {
@@ -186,6 +322,11 @@ public class ChampionStatsService {
     }
 
     public List<ChampionStatResponse> getChampionStats(String position, String patch) {
+        String targetPatch = patch;
+        if (targetPatch == null || targetPatch.isBlank()) {
+            targetPatch = resolveLatestMatchPatch(DEFAULT_QUEUE_ID);
+        }
+
         StringBuilder sql = new StringBuilder("""
             SELECT
                 patch,
@@ -215,9 +356,9 @@ public class ChampionStatsService {
             params.add(position.trim().toUpperCase());
         }
 
-        if (patch != null && !patch.isBlank()) {
+        if (targetPatch != null && !targetPatch.isBlank()) {
             sql.append(" AND patch = ? ");
-            params.add(patch.trim());
+            params.add(targetPatch.trim());
         }
 
         sql.append(" ORDER BY tier_score DESC, games DESC ");
@@ -244,5 +385,9 @@ public class ChampionStatsService {
                         .build(),
                 params.toArray()
         );
+    }
+
+    private String normalizePatch(String patch) {
+        return patch == null ? "" : patch.trim();
     }
 }

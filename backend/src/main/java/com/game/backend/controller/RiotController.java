@@ -46,8 +46,14 @@ public class RiotController {
      * 예시: POST /api/riot/stats/rebuild
      */
     @PostMapping("/stats/rebuild")
-    public StatsRebuildResponse rebuildChampionStats() {
-        return championStatsService.rebuildChampionStats();
+    public StatsRebuildResponse rebuildChampionStats(
+            @RequestParam(required = false) String patch,
+            @RequestParam(defaultValue = "420") int queueId
+    ) {
+        if (patch == null || patch.isBlank()) {
+            return championStatsService.rebuildChampionStats();
+        }
+        return championStatsService.rebuildChampionStats(patch, queueId);
     }
 
     /**

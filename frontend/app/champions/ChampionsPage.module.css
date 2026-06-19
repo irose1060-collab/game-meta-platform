@@ -624,3 +624,250 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+/* ===== META GG CHAMPIONS MOBILE FINAL PATCH ===== */
+@media (max-width: 900px) {
+  .container {
+    width: 100%;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .heroInner {
+    padding: 34px 0 24px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+  }
+
+  .title {
+    font-size: clamp(34px, 12vw, 48px);
+    letter-spacing: -0.03em;
+  }
+
+  .description {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .summaryGrid {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .positionTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .positionTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .positionButton {
+    flex: 0 0 104px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 18px;
+  }
+
+  .toolbarLeft {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchInput,
+  .select {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .checkboxLabel {
+    white-space: normal;
+  }
+
+  .tableCard {
+    border-radius: 18px;
+  }
+
+  .tableScroll {
+    margin: 0 -1px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    min-width: 920px;
+  }
+
+  .detailSectionGrid,
+  .basicGrid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .summaryCard,
+  .latestCard,
+  .tableCard,
+  .detailPanel {
+    border-radius: 16px;
+  }
+
+  .content {
+    padding-top: 18px;
+  }
+
+  .itemGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .spellRow,
+  .counterRow {
+    grid-template-columns: auto 1fr !important;
+  }
+
+  .rowMeta {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+/* ===== META GG CHAMPIONS MOBILE FINAL PATCH ===== */
+@media (max-width: 900px) {
+  .container {
+    width: 100%;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .heroInner {
+    padding: 34px 0 24px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+  }
+
+  .title {
+    font-size: clamp(34px, 12vw, 48px);
+    letter-spacing: -0.03em;
+  }
+
+  .description {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .summaryGrid {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .positionTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .positionTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .positionButton {
+    flex: 0 0 104px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 18px;
+  }
+
+  .toolbarLeft {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchInput,
+  .select {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .checkboxLabel {
+    white-space: normal;
+  }
+
+  .tableCard {
+    border-radius: 18px;
+  }
+
+  .tableScroll {
+    margin: 0 -1px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    min-width: 920px;
+  }
+
+  .detailSectionGrid,
+  .basicGrid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .summaryCard,
+  .latestCard,
+  .tableCard,
+  .detailPanel {
+    border-radius: 16px;
+  }
+
+  .content {
+    padding-top: 18px;
+  }
+
+  .itemGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .spellRow,
+  .counterRow {
+    grid-template-columns: auto 1fr !important;
+  }
+
+  .rowMeta {
+    grid-column: 2;
+    text-align: left;
+  }
+}

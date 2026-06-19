@@ -554,3 +554,107 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ===== META GG STATISTICS MOBILE FINAL PATCH ===== */
+@media (max-width: 1100px) {
+  .container {
+    width: 100%;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .gridTwo,
+  .rankingGrid,
+  .positionTopGrid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .heroInner {
+    padding: 34px 0 24px;
+  }
+
+  .title {
+    font-size: clamp(34px, 12vw, 48px);
+    letter-spacing: -0.03em;
+  }
+
+  .description {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 18px;
+  }
+
+  .select,
+  .reloadButton {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .summaryCard,
+  .panel,
+  .stateBox {
+    border-radius: 18px;
+  }
+
+  .panelHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .panelBody {
+    padding: 14px;
+    overflow-x: auto;
+  }
+
+  .positionBarRow {
+    grid-template-columns: 72px 1fr;
+    gap: 8px;
+  }
+
+  .positionMeta {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .scatterPlot,
+  .scatterEmpty {
+    min-width: 520px;
+  }
+
+  .scatterScroll,
+  .panelBody:has(.scatterPlot) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .summaryGrid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .summaryValue {
+    white-space: normal;
+  }
+}

@@ -409,6 +409,7 @@ function MatchCard({
   const resultBg = match.win
     ? "rgba(52, 211, 153, 0.12)"
     : "rgba(248, 113, 113, 0.12)";
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <article style={matchCardStyle}>
@@ -460,58 +461,76 @@ function MatchCard({
         </div>
       </div>
 
-      <div style={itemBuildStyle}>
-        <div style={sectionLabelStyle}>최종 아이템</div>
-        <AssetIconList assets={match.items ?? []} size={34} max={7} showEmpty />
-        <div style={{ marginLeft: "auto", color: TEXT_DIM, fontSize: 12 }}>
-          게임 시간 {match.gameDurationText}
+      <div style={matchSummaryActionStyle}>
+        <div style={matchSummaryTextStyle}>
+          <strong style={{ color: teamColor }}>{match.resultText}</strong> · {match.championName} · {match.kills}/{match.deaths}/{match.assists} · {match.gameDurationText}
         </div>
+        <button
+          type="button"
+          style={detailToggleButtonStyle}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "상세 접기" : "상세보기"}
+        </button>
       </div>
 
-      <div style={timelineGridStyle}>
-        <ItemBuildTimeline itemBuild={match.itemBuild ?? []} />
-        <SkillOrderLine
-          skillOrder={match.skillOrder ?? []}
-          skillOrderText={match.skillOrderText}
-        />
-      </div>
+      {expanded && (
+        <>
+          <div style={itemBuildStyle}>
+            <div style={sectionLabelStyle}>최종 아이템</div>
+            <AssetIconList assets={match.items ?? []} size={34} max={7} showEmpty />
+            <div style={{ marginLeft: "auto", color: TEXT_DIM, fontSize: 12 }}>
+              게임 시간 {match.gameDurationText}
+            </div>
+          </div>
 
-      <div style={objectivesStyle}>
-        <TeamObjectiveSummary
-          label="블루팀"
-          color={TEAM_BLUE}
-          summary={match.blueTeamSummary}
-          totalKills={match.blueTeamTotalKills}
-          totalGold={match.blueTeamTotalGold}
-        />
-        <TeamObjectiveSummary
-          label="레드팀"
-          color={TEAM_RED}
-          summary={match.redTeamSummary}
-          totalKills={match.redTeamTotalKills}
-          totalGold={match.redTeamTotalGold}
-        />
-      </div>
+          <div style={timelineGridStyle}>
+            <ItemBuildTimeline itemBuild={match.itemBuild ?? []} />
+            <SkillOrderLine
+              skillOrder={match.skillOrder ?? []}
+              skillOrderText={match.skillOrderText}
+            />
+          </div>
 
-      <div style={teamsGridStyle}>
-        <TeamList
-          title={`블루팀 · ${match.blueTeamTotalKills}킬`}
-          color={TEAM_BLUE}
-          participants={match.blueTeam ?? []}
-          maxDamage={match.maxDamage}
-          currentPuuid={currentPuuid}
-          onParticipantClick={onParticipantClick}
-        />
+          <div style={objectivesStyle}>
+            <TeamObjectiveSummary
+              label="블루팀"
+              color={TEAM_BLUE}
+              summary={match.blueTeamSummary}
+              totalKills={match.blueTeamTotalKills}
+              totalGold={match.blueTeamTotalGold}
+            />
+            <TeamObjectiveSummary
+              label="레드팀"
+              color={TEAM_RED}
+              summary={match.redTeamSummary}
+              totalKills={match.redTeamTotalKills}
+              totalGold={match.redTeamTotalGold}
+            />
+          </div>
 
-        <TeamList
-          title={`레드팀 · ${match.redTeamTotalKills}킬`}
-          color={TEAM_RED}
-          participants={match.redTeam ?? []}
-          maxDamage={match.maxDamage}
-          currentPuuid={currentPuuid}
-          onParticipantClick={onParticipantClick}
-        />
-      </div>
+          <div style={teamsGridStyle}>
+            <TeamList
+              title={`블루팀 · ${match.blueTeamTotalKills}킬`}
+              color={TEAM_BLUE}
+              participants={match.blueTeam ?? []}
+              maxDamage={match.maxDamage}
+              currentPuuid={currentPuuid}
+              onParticipantClick={onParticipantClick}
+            />
+
+            <TeamList
+              title={`레드팀 · ${match.redTeamTotalKills}킬`}
+              color={TEAM_RED}
+              participants={match.redTeam ?? []}
+              maxDamage={match.maxDamage}
+              currentPuuid={currentPuuid}
+              onParticipantClick={onParticipantClick}
+            />
+          </div>
+        </>
+      )}
     </article>
   );
 }
@@ -925,6 +944,33 @@ const statChipStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.07)",
   display: "grid",
   gap: 2,
+};
+
+const matchSummaryActionStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "12px 16px 16px",
+  borderTop: "1px solid rgba(255,255,255,0.07)",
+  flexWrap: "wrap",
+};
+
+const matchSummaryTextStyle: CSSProperties = {
+  color: "#cbd5e1",
+  fontSize: 13,
+  fontWeight: 800,
+};
+
+const detailToggleButtonStyle: CSSProperties = {
+  border: "1px solid rgba(245,197,66,0.35)",
+  background: "rgba(245,197,66,0.1)",
+  color: "#f8d978",
+  borderRadius: 999,
+  padding: "8px 14px",
+  fontSize: 13,
+  fontWeight: 950,
+  cursor: "pointer",
 };
 
 const itemBuildStyle: CSSProperties = {

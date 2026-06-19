@@ -16,6 +16,7 @@ import java.util.List;
 public class AdminCollectionStatusService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final ChampionStatsService championStatsService;
 
     @Value("${riot.auto-collect.enabled:false}")
     private boolean autoCollectEnabled;
@@ -32,7 +33,18 @@ public class AdminCollectionStatusService {
     @Value("${riot.auto-collect.delay-between-players-ms:3000}")
     private long delayBetweenPlayersMs;
 
+    @Value("${riot.auto-collect.target-games-per-patch:1000}")
+    private int targetPatchGames;
+
     public AdminCollectionStatusResponse getStatus() {
+        String latestPatch = championStatsService.resolveLatestMatchPatch(420);
+        long latestPatchMatchCount = championStatsService.countMatchesForPatch(latestPatch, 420);
+        long latestPatchStatRows = championStatsService.countStatRowsForPatch(latestPatch, 420);
+        long latestPatchTotalGames = championStatsService.sumGamesForPatch(latestPatch, 420);
+        double latestPatchProgressPercent = targetPatchGames <= 0
+                ? 0.0
+                : Math.min(100.0, Math.round(latestPatchMatchCount * 10000.0 / targetPatchGames) / 100.0);
+
         return AdminCollectionStatusResponse.builder()
                 .matchCount(count("matches"))
                 .participantCount(count("match_participants"))
@@ -42,6 +54,12 @@ public class AdminCollectionStatusService {
                 .rankingPlayerCount(countIfExists("challenger_ranking_players"))
                 .totalSavedMatchesBySeeds(sumTotalSavedMatches())
                 .failedSeedCount(countFailedSeeds())
+                .latestPatch(latestPatch)
+                .latestPatchMatchCount(latestPatchMatchCount)
+                .latestPatchStatRows(latestPatchStatRows)
+                .latestPatchTotalGames(latestPatchTotalGames)
+                .targetPatchGames(targetPatchGames)
+                .latestPatchProgressPercent(latestPatchProgressPercent)
                 .lastCollectedAt(maxDateTime("seed_players", "last_collected_at"))
                 .lastMatchCreatedAt(maxDateTime("matches", "created_at"))
                 .lastStatsUpdatedAt(maxDateTime("champion_stats", "updated_at"))
