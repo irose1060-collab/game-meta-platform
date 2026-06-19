@@ -16,7 +16,7 @@ public class MatchSearchController {
     public MatchSearchResponse searchMatches(
             @RequestParam String gameName,
             @RequestParam String tagLine,
-            @RequestParam(defaultValue = "10") int count
+            @RequestParam(defaultValue = "20") int count
     ) {
         return matchSearchService.searchMatches(gameName, tagLine, count);
     }
